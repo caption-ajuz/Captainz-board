@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Captnz Board</title>
+  <link rel="stylesheet" href="/src/styles/main.css" />
+</head>
+<body>
+  <!-- Fullscreen 98%-Unobstructed Interactive Stage -->
+  <main id="board-viewport" class="board-viewport" aria-label="Interactive Whiteboard Canvas">
+    <div id="board-transform-layer" class="board-transform-layer">
+      <canvas id="bg-canvas" class="board-canvas"></canvas>
+      <canvas id="ink-canvas" class="board-canvas"></canvas>
+      <canvas id="active-canvas" class="board-canvas"></canvas>
+      <div id="stamp-layer" class="stamp-layer"></div>
+    </div>
+
+    <!-- Lasso Action Floating Pill (appears right after a lasso snip) -->
+    <div id="lasso-actions" class="glass-pill lasso-actions hidden">
+      <button id="btn-lasso-move" class="pill-btn" data-i18n="lassoPasteHere">Paste Here</button>
+      <button id="btn-lasso-new-page" class="pill-btn accent" data-i18n="lassoNewPage">Snip → New Blank Page</button>
+      <button id="btn-lasso-cancel" class="pill-btn danger" data-i18n="cancel">Cancel</button>
+    </div>
+  </main>
+
+  <!-- Top-Left Minimalist Hamburger Button -->
+  <button id="btn-hamburger" class="glass-icon-btn hamburger-btn" aria-label="Menu" title="Menu (M)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
+    </svg>
+  </button>
+
+  <!-- Auto-Hide Slide Drawer Backdrop -->
+  <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
+
+  <!-- Auto-Hide Glassmorphism Slide Drawer -->
+  <aside id="slide-drawer" class="slide-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="brand-lockup">
+        <span class="brand-dot"></span>
+        <span class="brand-name">Captnz Board</span>
+      </div>
+      <button id="btn-close-drawer" class="icon-btn-sm" aria-label="Close">✕</button>
+    </div>
+
+    <!-- File Actions -->
+    <section class="drawer-section">
+      <h3 class="section-label" data-i18n="files">Files</h3>
+      <div class="action-grid">
+        <button id="btn-open-pdf" class="drawer-btn" data-i18n="openPdf">Open PDF</button>
+        <button id="btn-open-ppt" class="drawer-btn" data-i18n="openPpt">Open PPT / PPTX</button>
+        <button id="btn-import-img" class="drawer-btn" data-i18n="importImage">Import Image</button>
+        <button id="btn-export-pdf" class="drawer-btn primary" data-i18n="exportPdf">Export PDF</button>
+      </div>
+    </section>
+
+    <!-- Board Backgrounds -->
+    <section class="drawer-section">
+      <h3 class="section-label" data-i18n="boardBackground">Board Background</h3>
+      <div class="bg-grid" id="bg-switcher">
+        <button class="bg-chip active" data-bg="white">
+          <span class="bg-swatch swatch-white"></span>
+          <span data-i18n="bgWhite">White</span>
+        </button>
+        <button class="bg-chip" data-bg="blackboard">
+          <span class="bg-swatch swatch-blackboard"></span>
+          <span data-i18n="bgBlackboard">Blackboard</span>
+        </button>
+        <button class="bg-chip" data-bg="grid">
+          <span class="bg-swatch swatch-grid"></span>
+          <span data-i18n="bgGrid">Grid</span>
+        </button>
+        <button class="bg-chip" data-bg="ruled">
+          <span class="bg-swatch swatch-ruled"></span>
+          <span data-i18n="bgRuled">Ruled</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Settings Row: Theme, Palm Mode, Language -->
+    <section class="drawer-section">
+      <h3 class="section-label" data-i18n="preferences">Preferences</h3>
+      <div class="pref-row">
+        <span data-i18n="appearance">Appearance</span>
+        <button id="btn-toggle-theme" class="toggle-chip" data-i18n="darkMode">Dark</button>
+      </div>
+      <div class="pref-row">
+        <span data-i18n="palmAction">Wide Palm Touch</span>
+        <button id="btn-toggle-palm" class="toggle-chip" data-i18n="palmEraser">Palm Eraser</button>
+      </div>
+      <div class="pref-row">
+        <span data-i18n="language">Language</span>
+        <select id="select-language" class="lang-select" aria-label="Language">
+          <option value="en">English</option>
+          <option value="ml">മലയാളം</option>
+          <option value="ar">العربية</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Page / Slide Thumbnails -->
+    <section class="drawer-section drawer-pages-section">
+      <div class="section-header-row">
+        <h3 class="section-label" data-i18n="pages">Pages</h3>
+        <div class="mini-actions">
+          <button id="btn-clear-page" class="text-btn danger" data-i18n="clearPage">Clear Ink</button>
+          <button id="btn-new-session" class="text-btn" data-i18n="newBoard">New</button>
+        </div>
+      </div>
+      <div id="thumbnail-list" class="thumbnail-list"></div>
+    </section>
+  </aside>
+
+  <!-- Draggable Previous Arrow (<) -->
+  <div id="nav-prev-dock" class="draggable-dock nav-prev-dock" data-drag-id="nav-prev">
+    <button id="btn-prev-page" class="glass-nav-btn" aria-label="Previous Page" title="Previous Page (←)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Draggable Next Arrow (>) + Page Counter + Instant Add Blank Page (+) -->
+  <div id="nav-next-dock" class="draggable-dock nav-next-dock" data-drag-id="nav-next">
+    <div class="glass-nav-cluster">
+      <span id="page-indicator" class="page-indicator" title="Drag to reposition">1 / 1</span>
+      <button id="btn-next-page" class="glass-nav-btn" aria-label="Next Page" title="Next Page (→)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+      <button id="btn-add-blank" class="glass-nav-btn accent-add" aria-label="Insert Blank Page" title="Insert Blank Page After Current (+)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Draggable Floating Circle Toolbox (Orb) -->
+  <div id="toolbox-orb-dock" class="draggable-dock toolbox-orb-dock" data-drag-id="toolbox-orb">
+    <!-- Expanded Compact Floating Panel -->
+    <div id="orb-panel" class="orb-panel hidden" role="toolbar" aria-label="Drawing Tools">
+      <!-- Brushes & Pens -->
+      <div class="panel-group">
+        <div class="panel-group-title" data-i18n="brushes">Brushes &amp; Pens</div>
+        <div class="tool-grid">
+          <button class="tool-btn active" data-tool="fountain" title="Fountain Pen">
+            <span class="tool-ico">✒️</span>
+            <span class="tool-lbl" data-i18n="toolFountain">Fountain</span>
+          </button>
+          <button class="tool-btn" data-tool="ballpoint" title="Ballpoint Pen">
+            <span class="tool-ico">🖊️</span>
+            <span class="tool-lbl" data-i18n="toolBallpoint">Ballpoint</span>
+          </button>
+          <button class="tool-btn" data-tool="calligraphy" title="Calligraphy Marker">
+            <span class="tool-ico">🖋️</span>
+            <span class="tool-lbl" data-i18n="toolCalligraphy">Calligraphy</span>
+          </button>
+          <button class="tool-btn" data-tool="highlighter" title="Smart Highlighter">
+            <span class="tool-ico">🖍️</span>
+            <span class="tool-lbl" data-i18n="toolHighlighter">Highlighter</span>
+          </button>
+          <button class="tool-btn" data-tool="pencil" title="Sketch Pencil">
+            <span class="tool-ico">✏️</span>
+            <span class="tool-lbl" data-i18n="toolPencil">Pencil</span>
+          </button>
+          <button class="tool-btn" data-tool="vanishing" title="Vanishing Ink (2.5s)">
+            <span class="tool-ico">✨</span>
+            <span class="tool-lbl" data-i18n="toolVanishing">Vanishing</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Laser, Eraser, Lasso, Auto-Shapes -->
+      <div class="panel-group">
+        <div class="panel-group-title" data-i18n="smartTools">Tools &amp; Laser</div>
+        <div class="tool-grid">
+          <button class="tool-btn" data-tool="laser-red" title="Red Laser Pointer">
+            <span class="tool-ico laser-dot red"></span>
+            <span class="tool-lbl" data-i18n="toolLaserRed">Red Laser</span>
+          </button>
+          <button class="tool-btn" data-tool="laser-blue" title="Blue Laser Pointer">
+            <span class="tool-ico laser-dot blue"></span>
+            <span class="tool-lbl" data-i18n="toolLaserBlue">Blue Laser</span>
+          </button>
+          <button class="tool-btn" data-tool="eraser-stroke" title="Stroke Eraser">
+            <span class="tool-ico">🧹</span>
+            <span class="tool-lbl" data-i18n="toolEraserStroke">Stroke Erase</span>
+          </button>
+          <button class="tool-btn" data-tool="eraser-pixel" title="Pixel Eraser">
+            <span class="tool-ico">🧽</span>
+            <span class="tool-lbl" data-i18n="toolEraserPixel">Pixel Erase</span>
+          </button>
+          <button class="tool-btn" data-tool="lasso" title="Lasso Snip Tool">
+            <span class="tool-ico">✂️</span>
+            <span class="tool-lbl" data-i18n="toolLasso">Lasso Snip</span>
+          </button>
+          <button class="tool-btn" data-tool="shape" title="Draw-and-Hold Auto-Shapes">
+            <span class="tool-ico">⬠</span>
+            <span class="tool-lbl" data-i18n="toolShape">Auto-Shape</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Color Swatches & Custom Picker -->
+      <div class="panel-group">
+        <div class="swatch-row" id="color-swatches">
+          <button class="color-swatch active" data-color="#111827" style="--swatch:#111827" aria-label="Ink Black"></button>
+          <button class="color-swatch" data-color="#ffffff" style="--swatch:#ffffff" aria-label="Chalk White"></button>
+          <button class="color-swatch" data-color="#ef4444" style="--swatch:#ef4444" aria-label="Crimson Red"></button>
+          <button class="color-swatch" data-color="#2563eb" style="--swatch:#2563eb" aria-label="Royal Blue"></button>
+          <button class="color-swatch" data-color="#10b981" style="--swatch:#10b981" aria-label="Emerald Green"></button>
+          <button class="color-swatch" data-color="#f59e0b" style="--swatch:#f59e0b" aria-label="Amber Gold"></button>
+          <button class="color-swatch" data-color="#8b5cf6" style="--swatch:#8b5cf6" aria-label="Violet"></button>
+          <label class="color-picker-wrap" title="Custom Color">
+            <input type="color" id="custom-color-input" value="#06b6d4" />
+            <span class="color-wheel-icon">+</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Thickness Slider + Undo/Redo/Zoom -->
+      <div class="panel-group slider-row">
+        <span class="size-preview-wrap">
+          <span id="size-preview-dot" class="size-preview-dot"></span>
+        </span>
+        <input id="stroke-size-slider" type="range" min="1" max="36" value="4" step="1" aria-label="Stroke Size" />
+        <span id="stroke-size-val" class="size-val">4</span>
+      </div>
+
+      <div class="panel-footer-actions">
+        <button id="btn-undo" class="mini-action-btn" title="Undo (Ctrl+Z • 2-Finger Tap)">↶ <span data-i18n="undo">Undo</span></button>
+        <button id="btn-redo" class="mini-action-btn" title="Redo (Ctrl+Y • 3-Finger Tap)">↷ <span data-i18n="redo">Redo</span></button>
+        <button id="btn-reset-zoom" class="mini-action-btn" title="Reset Zoom (Ctrl+0)">100%</button>
+      </div>
+
+      <button id="btn-touch-lock" class="mini-action-btn touch-lock-toggle" aria-pressed="false" title="Lock finger touch drawing (Stylus-Only Mode)">
+        <span>✋</span>
+        <span data-i18n="touchLockOff">Touch Draw: ON</span>
+      </button>
+    </div>
+
+    <!-- Floating Circular Orb Button -->
+    <button id="btn-orb-toggle" class="orb-button" aria-label="Toggle Toolbox" title="Tap for tools • Drag to move">
+      <span id="orb-color-ring" class="orb-color-ring"></span>
+      <span id="orb-active-icon" class="orb-active-icon">✒️</span>
+      <span id="orb-lock-badge" class="orb-lock-badge hidden" title="Stylus-Only Mode Active">🔒</span>
+    </button>
+  </div>
+
+  <!-- Crash Recovery Banner -->
+  <div id="recovery-banner" class="glass-pill recovery-banner hidden">
+    <span data-i18n="recoveryPrompt">Unsaved session found. Restore it?</span>
+    <button id="btn-recovery-restore" class="pill-btn accent" data-i18n="restore">Restore</button>
+    <button id="btn-recovery-dismiss" class="pill-btn" data-i18n="dismiss">Dismiss</button>
+  </div>
+
+  <!-- Non-Intrusive Toast Notification -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- Browser Fallback File Inputs (used only outside Tauri) -->
+  <input id="fallback-pdf-input" type="file" accept=".pdf,application/pdf" class="hidden" />
+  <input id="fallback-img-input" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+  <input id="fallback-ppt-input" type="file" accept=".ppt,.pptx" class="hidden" />
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
