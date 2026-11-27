@@ -1,5 +1,5 @@
 /**
- * Captnz Board — Auto-Hide Hamburger Slide Drawer Controller
+ * Captnz Board — Slide Drawer Controller
  */
 
 import { applyLanguage, t } from '../i18n/translations.js';
@@ -37,30 +37,20 @@ export class SlideDrawer {
     document.getElementById('btn-close-drawer').addEventListener('click', () => this.close());
     this.backdrop.addEventListener('click', () => this.close());
 
-    document.getElementById('btn-open-pdf').addEventListener('click', () => {
-      this.close();
-      onOpenPdf?.();
-    });
-    document.getElementById('btn-open-ppt').addEventListener('click', () => {
-      this.close();
-      onOpenPpt?.();
-    });
-    document.getElementById('btn-import-img').addEventListener('click', () => {
-      this.close();
-      onImportImage?.();
-    });
-    document.getElementById('btn-export-pdf').addEventListener('click', () => {
-      this.close();
-      onExportPdf?.();
-    });
-    document.getElementById('btn-clear-page').addEventListener('click', () => {
-      this.close();
-      onClearPage?.();
-    });
-    document.getElementById('btn-new-session').addEventListener('click', () => {
-      this.close();
-      onNewBoard?.();
-    });
+    const drawerActions = [
+      ['btn-open-pdf', onOpenPdf],
+      ['btn-open-ppt', onOpenPpt],
+      ['btn-import-img', onImportImage],
+      ['btn-export-pdf', onExportPdf],
+      ['btn-clear-page', onClearPage],
+      ['btn-new-session', onNewBoard],
+    ];
+    for (const [id, handler] of drawerActions) {
+      document.getElementById(id)?.addEventListener('click', () => {
+        this.close();
+        handler?.();
+      });
+    }
 
     // Background switcher
     document.querySelectorAll('#bg-switcher .bg-chip').forEach((btn) => {

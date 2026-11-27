@@ -1,37 +1,37 @@
-/* Captnz Board — Minimalist Glassmorphism 4K Smart Board Stylesheet */
+/* Captnz Board Styles */
 :root {
   --font-sans: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans Malayalam", "Noto Sans Arabic", sans-serif;
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --danger: #ef4444;
-  --radius-lg: 18px;
+  --radius-lg: 16px;
   --radius-md: 12px;
   --radius-pill: 999px;
-  --transition-fast: 160ms cubic-bezier(0.22, 1, 0.36, 1);
-  --transition-smooth: 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-smooth: 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 [data-theme="dark"] {
-  --glass-bg: rgba(17, 24, 39, 0.78);
-  --glass-bg-strong: rgba(15, 23, 42, 0.9);
-  --glass-border: rgba(255, 255, 255, 0.14);
-  --glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  --glass-bg: rgba(17, 24, 39, 0.88);
+  --glass-bg-strong: rgba(15, 23, 42, 0.94);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   --text-primary: #f8fafc;
   --text-muted: #94a3b8;
-  --surface-hover: rgba(255, 255, 255, 0.1);
-  --surface-active: rgba(59, 130, 246, 0.25);
+  --surface-hover: rgba(255, 255, 255, 0.09);
+  --surface-active: rgba(59, 130, 246, 0.24);
   --viewport-bg: #0f172a;
 }
 
 [data-theme="light"] {
-  --glass-bg: rgba(255, 255, 255, 0.8);
-  --glass-bg-strong: rgba(255, 255, 255, 0.94);
-  --glass-border: rgba(15, 23, 42, 0.12);
-  --glass-shadow: 0 12px 32px rgba(15, 23, 42, 0.14);
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-bg-strong: rgba(255, 255, 255, 0.96);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
   --text-primary: #0f172a;
   --text-muted: #475569;
   --surface-hover: rgba(15, 23, 42, 0.06);
-  --surface-active: rgba(59, 130, 246, 0.16);
+  --surface-active: rgba(59, 130, 246, 0.15);
   --viewport-bg: #e2e8f0;
 }
 
@@ -146,27 +146,27 @@ html, body {
   cursor: nwse-resize;
 }
 
-/* ==================== Glassmorphism Chrome ==================== */
+/* ==================== Floating Chrome ==================== */
 .glass-icon-btn,
 .glass-nav-btn,
 .glass-nav-cluster,
 .glass-pill,
 .orb-panel,
 .slide-drawer {
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-/* Top-Left Hamburger */
+/* Menu Button */
 .hamburger-btn {
   position: fixed;
   top: 16px;
   left: 16px;
   z-index: 40;
   pointer-events: auto;
-  width: 50px;
-  height: 50px;
-  border-radius: 15px;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   background: var(--glass-bg);
   color: var(--text-primary);
@@ -245,11 +245,10 @@ html, body {
 }
 
 .brand-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #38bdf8, #3b82f6, #8b5cf6);
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+  background: var(--accent);
 }
 
 .brand-name {
@@ -559,12 +558,12 @@ html, body {
 
 .orb-button {
   position: relative;
-  width: 62px;
-  height: 62px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   border: 1.5px solid var(--glass-border);
   background: var(--glass-bg-strong);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--glass-shadow);
   display: grid;
   place-items: center;
   cursor: grab;
@@ -605,29 +604,29 @@ html, body {
   font-size: 11px;
   line-height: 1;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .orb-panel {
   position: absolute;
-  right: 74px;
+  right: 72px;
   top: 50%;
   transform: translateY(-50%);
-  width: 316px;
-  padding: 14px;
-  border-radius: 22px;
+  width: 312px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
   background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  animation: popIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  gap: 10px;
+  animation: popIn 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .orb-panel.open-right {
   right: auto;
-  left: 74px;
+  left: 72px;
 }
 
 @keyframes popIn {

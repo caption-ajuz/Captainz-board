@@ -185,7 +185,7 @@ const orb = new FloatingOrb({
   },
 });
 
-// 6. Draggable Navigation Controls (< > +)
+// 6. Navigation Controls (< > +)
 const navControls = new NavControls({
   onPrev: () => {
     pageManager.captureCurrentThumbnail(inkCanvas);
@@ -203,7 +203,7 @@ const navControls = new NavControls({
   },
 });
 
-// 7. Auto-Hide Hamburger Slide Drawer
+// 7. Slide Drawer
 const drawer = new SlideDrawer({
   onBeforeOpen: () => {
     pageManager.captureCurrentThumbnail(inkCanvas);
@@ -222,7 +222,7 @@ const drawer = new SlideDrawer({
     pageManager.setBackground(bg);
     const isDark = bg === 'blackboard';
     inkEngine.setDarkBackground(isDark);
-    // Smartly switch default ink to chalk white on blackboard, or dark ink on white
+    // Switch default ink between chalk white and dark ink when switching background polarity
     if (isDark && orb.currentColor.toLowerCase() === '#111827') {
       orb.setColor('#ffffff');
       inkEngine.setColor('#ffffff');

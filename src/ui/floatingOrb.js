@@ -109,6 +109,7 @@ export class FloatingOrb {
   toggle() {
     this.isOpen = !this.isOpen;
     this.panel.classList.toggle('hidden', !this.isOpen);
+    this.btnToggle.setAttribute('aria-expanded', String(this.isOpen));
     if (this.isOpen) this._alignPanelSide();
   }
 
@@ -116,6 +117,7 @@ export class FloatingOrb {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.panel.classList.add('hidden');
+    this.btnToggle.setAttribute('aria-expanded', 'false');
   }
 
   _alignPanelSide(targetRect = null) {

@@ -7,8 +7,8 @@
   <link rel="icon" type="image/png" href="./favicon.png" />
 </head>
 <body>
-  <!-- Fullscreen 98%-Unobstructed Interactive Stage -->
-  <main id="board-viewport" class="board-viewport" aria-label="Interactive Whiteboard Canvas">
+  <!-- Board Stage -->
+  <main id="board-viewport" class="board-viewport" aria-label="Whiteboard Canvas">
     <div id="board-transform-layer" class="board-transform-layer">
       <canvas id="bg-canvas" class="board-canvas"></canvas>
       <canvas id="ink-canvas" class="board-canvas"></canvas>
@@ -24,7 +24,7 @@
     </div>
   </main>
 
-  <!-- Top-Left Minimalist Hamburger Button -->
+  <!-- Menu Toggle -->
   <button id="btn-hamburger" class="glass-icon-btn hamburger-btn" aria-label="Menu" title="Menu (M)">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
       <line x1="4" y1="6" x2="20" y2="6" />
@@ -33,10 +33,10 @@
     </svg>
   </button>
 
-  <!-- Auto-Hide Slide Drawer Backdrop -->
+  <!-- Slide Drawer Backdrop -->
   <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
 
-  <!-- Auto-Hide Glassmorphism Slide Drawer -->
+  <!-- Slide Drawer -->
   <aside id="slide-drawer" class="slide-drawer" aria-hidden="true" inert>
     <div class="drawer-header">
       <div class="brand-lockup">
@@ -114,7 +114,7 @@
     </section>
   </aside>
 
-  <!-- Draggable Previous Arrow (<) -->
+  <!-- Previous Page (<) -->
   <div id="nav-prev-dock" class="draggable-dock nav-prev-dock" data-drag-id="nav-prev">
     <button id="btn-prev-page" class="glass-nav-btn" aria-label="Previous Page" title="Previous Page (←)">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -123,7 +123,7 @@
     </button>
   </div>
 
-  <!-- Draggable Next Arrow (>) + Page Counter + Instant Add Blank Page (+) -->
+  <!-- Next Page (>) & Add Blank Page (+) -->
   <div id="nav-next-dock" class="draggable-dock nav-next-dock" data-drag-id="nav-next">
     <div class="glass-nav-cluster">
       <span id="page-indicator" class="page-indicator" title="Drag to reposition">1 / 1</span>
@@ -141,9 +141,8 @@
     </div>
   </div>
 
-  <!-- Draggable Floating Circle Toolbox (Orb) -->
+  <!-- Floating Toolbox Orb -->
   <div id="toolbox-orb-dock" class="draggable-dock toolbox-orb-dock" data-drag-id="toolbox-orb">
-    <!-- Expanded Compact Floating Panel -->
     <div id="orb-panel" class="orb-panel hidden" role="toolbar" aria-label="Drawing Tools">
       <!-- Brushes & Pens -->
       <div class="panel-group">
@@ -161,7 +160,7 @@
             <span class="tool-ico">🖋️</span>
             <span class="tool-lbl" data-i18n="toolCalligraphy">Calligraphy</span>
           </button>
-          <button class="tool-btn" data-tool="highlighter" title="Smart Highlighter">
+          <button class="tool-btn" data-tool="highlighter" title="Highlighter">
             <span class="tool-ico">🖍️</span>
             <span class="tool-lbl" data-i18n="toolHighlighter">Highlighter</span>
           </button>
@@ -245,22 +244,22 @@
       </button>
     </div>
 
-    <!-- Floating Circular Orb Button -->
-    <button id="btn-orb-toggle" class="orb-button" aria-label="Toggle Toolbox" title="Tap for tools • Drag to move">
+    <!-- Orb Toggle -->
+    <button id="btn-orb-toggle" class="orb-button" aria-label="Toggle Toolbox" aria-expanded="false" title="Tap for tools • Drag to move">
       <span id="orb-color-ring" class="orb-color-ring"></span>
       <span id="orb-active-icon" class="orb-active-icon">✒️</span>
       <span id="orb-lock-badge" class="orb-lock-badge hidden" title="Stylus-Only Mode Active">🔒</span>
     </button>
   </div>
 
-  <!-- Crash Recovery Banner -->
+  <!-- Recovery Banner -->
   <div id="recovery-banner" class="glass-pill recovery-banner hidden">
     <span data-i18n="recoveryPrompt">Unsaved session found. Restore it?</span>
     <button id="btn-recovery-restore" class="pill-btn accent" data-i18n="restore">Restore</button>
     <button id="btn-recovery-dismiss" class="pill-btn" data-i18n="dismiss">Dismiss</button>
   </div>
 
-  <!-- Non-Intrusive Toast Notification -->
+  <!-- Toast -->
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <!-- Browser Fallback File Inputs (used only outside Tauri) -->
