@@ -2529,6 +2529,194 @@ input:focus-visible,
   }
 }
 
+/* ==================== Smart Hybrid QR Share Modal ==================== */
+.share-modal {
+  width: 100%;
+  max-width: 480px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  border: 1.5px solid var(--glass-border);
+  box-shadow: var(--drag-shadow);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.share-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.share-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.share-mode-badge {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 700;
+  background: var(--surface-active);
+  color: var(--accent);
+}
+
+.share-mode-badge[data-mode="offline"] {
+  background: var(--warning-surface);
+  color: var(--warning);
+}
+
+.share-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--orb-tonal);
+}
+
+.share-tab-btn {
+  min-height: 36px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.share-tab-btn.active {
+  background: var(--orb-pill-active-bg);
+  color: var(--text-primary);
+  box-shadow: var(--orb-pill-active-shadow);
+}
+
+.share-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.share-status-box {
+  width: 100%;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: var(--orb-tonal);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.share-qr-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.share-qr-frame {
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  display: grid;
+  place-items: center;
+}
+
+.share-qr-img {
+  width: 240px;
+  height: 240px;
+  display: block;
+}
+
+.share-qr-empty {
+  width: 220px;
+  height: 180px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #475569;
+  font-size: 12.5px;
+  padding: 12px;
+}
+
+.share-hint {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.share-url-chip {
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--orb-tonal);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  word-break: break-all;
+  text-align: center;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.share-mode-toggle {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.share-mode-toggle:hover {
+  text-decoration: underline;
+}
+
+.share-text-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font-size: 13.5px;
+  resize: vertical;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.share-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--orb-divider);
+}
+
+.drawer-btn.accent {
+  background: var(--surface-active);
+  color: var(--accent);
+  border-color: rgba(77, 139, 255, 0.35);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

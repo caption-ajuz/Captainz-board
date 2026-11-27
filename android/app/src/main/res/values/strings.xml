@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Captnz Board</string>
+    <string name="title_activity_main">Captnz Board</string>
+    <string name="package_name">com.captnz.board</string>
+    <string name="custom_url_scheme">com.captnz.board</string>
+</resources>

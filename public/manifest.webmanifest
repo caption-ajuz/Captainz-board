@@ -1,0 +1,63 @@
+{
+  "name": "Captnz Board",
+  "short_name": "Captnz Board",
+  "description": "Zero-latency 4K Offline Interactive Whiteboard, PDF Annotator & Classroom Presenter",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0b0f17",
+  "background_color": "#0b0f17",
+  "icons": [
+    {
+      "src": "./icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "application/pdf": [".pdf"],
+        "application/x-captnz-board": [".cboard"],
+        "application/json": [".cboard"],
+        "image/png": [".png"],
+        "image/jpeg": [".jpg", ".jpeg"]
+      }
+    }
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "file",
+          "accept": [
+            ".pdf",
+            ".cboard",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            "application/pdf",
+            "application/x-captnz-board",
+            "image/png",
+            "image/jpeg"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -78,9 +78,9 @@ function drawTextBoxToCtx(ctx, st) {
   ctx.restore();
 }
 
-export async function exportSessionToPdf(pageManager, inkEngine) {
+export async function buildSessionPdfBytes(pageManager, inkEngine) {
   const pages = pageManager.pages;
-  if (!pages.length) return false;
+  if (!pages.length) return null;
 
   const cssW = window.innerWidth || 1920;
   const cssH = window.innerHeight || 1080;
@@ -198,24 +198,34 @@ export async function exportSessionToPdf(pageManager, inkEngine) {
   inkOff.width = inkOff.height = 0;
   merged.width = merged.height = 0;
 
-  const defaultName = `CaptnzBoard_${new Date().toISOString().slice(0, 10)}.pdf`;
+  const fileName = `CaptnzBoard_${new Date().toISOString().slice(0, 10)}.pdf`;
+  const arrayBuffer = pdf.output('arraybuffer');
+  return {
+    pdf,
+    bytes: new Uint8Array(arrayBuffer),
+    fileName,
+  };
+}
+
+export async function exportSessionToPdf(pageManager, inkEngine) {
+  const result = await buildSessionPdfBytes(pageManager, inkEngine);
+  if (!result) return false;
 
   if (isTauriRuntime()) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     const { invoke } = await import('@tauri-apps/api/core');
     const dest = await save({
-      defaultPath: defaultName,
+      defaultPath: result.fileName,
       filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
     });
     if (!dest) return false;
-    const arrayBuffer = pdf.output('arraybuffer');
     await invoke('write_file_bytes', {
       path: dest,
-      bytes: Array.from(new Uint8Array(arrayBuffer)),
+      bytes: Array.from(result.bytes),
     });
     return true;
   }
 
-  pdf.save(defaultName);
+  result.pdf.save(result.fileName);
   return true;
 }

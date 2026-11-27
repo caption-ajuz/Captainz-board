@@ -4,12 +4,38 @@ use pptx_fallback::ExtractedSlide;
 use std::fs;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::net::{Ipv4Addr, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::{Emitter, Manager};
 
 struct PendingOpenFile(Mutex<Option<String>>);
+
+struct ShareServerHandle {
+    stop_flag: Arc<AtomicBool>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl ShareServerHandle {
+    fn stop(&mut self) {
+        self.stop_flag.store(true, Ordering::SeqCst);
+        if let Some(handle) = self.join_handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+struct LocalShareServer(Mutex<Option<ShareServerHandle>>);
+
+#[derive(serde::Serialize)]
+struct LocalShareInfo {
+    url: String,
+    ip: String,
+    port: u16,
+}
 
 fn is_supported_open_extension(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()).map(|s| s.to_ascii_lowercase()) {
@@ -212,10 +238,163 @@ fn clear_recovery_session(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn is_private_ipv4(ip: Ipv4Addr) -> bool {
+    let o = ip.octets();
+    o[0] == 10
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 192 && o[1] == 168)
+}
+
+fn detect_local_ipv4() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(output) = new_hidden_command("ipconfig").output() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut candidates: Vec<Ipv4Addr> = Vec::new();
+            for line in text.lines() {
+                if !line.contains("IPv4") {
+                    continue;
+                }
+                if let Some((_, rhs)) = line.split_once(':') {
+                    let ip_str = rhs.trim().trim_end_matches("(Preferred)").trim();
+                    if let Ok(ip) = ip_str.parse::<Ipv4Addr>() {
+                        if !ip.is_loopback() && !(ip.octets()[0] == 169 && ip.octets()[1] == 254) {
+                            candidates.push(ip);
+                        }
+                    }
+                }
+            }
+            // Prefer Windows Mobile Hotspot default gateway IP if active
+            if let Some(hotspot) = candidates
+                .iter()
+                .find(|ip| ip.octets() == [192, 168, 137, 1])
+            {
+                return hotspot.to_string();
+            }
+            if let Some(priv_ip) = candidates.iter().find(|ip| is_private_ipv4(**ip)) {
+                return priv_ip.to_string();
+            }
+            if let Some(first) = candidates.first() {
+                return first.to_string();
+            }
+        }
+    }
+
+    if let Ok(sock) = UdpSocket::bind("0.0.0.0:0") {
+        if sock.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = sock.local_addr() {
+                let ip = addr.ip();
+                if !ip.is_loopback() {
+                    return ip.to_string();
+                }
+            }
+        }
+    }
+
+    "127.0.0.1".to_string()
+}
+
+#[tauri::command]
+fn start_local_pdf_share(
+    state: tauri::State<'_, LocalShareServer>,
+    bytes: Vec<u8>,
+    filename: Option<String>,
+) -> Result<LocalShareInfo, String> {
+    if let Ok(mut guard) = state.0.lock() {
+        if let Some(mut prev) = guard.take() {
+            prev.stop();
+        }
+    }
+
+    let server = tiny_http::Server::http("0.0.0.0:8765")
+        .or_else(|_| tiny_http::Server::http("0.0.0.0:0"))
+        .map_err(|e| format!("Could not start local share server: {}", e))?;
+
+    let port = server
+        .server_addr()
+        .to_ip()
+        .map(|a| a.port())
+        .ok_or_else(|| "Could not determine local server port".to_string())?;
+    let ip = detect_local_ipv4();
+    let safe_name = filename
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "notes.pdf".to_string());
+    let url = format!("http://{}:{}/notes.pdf", ip, port);
+
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let thread_stop = Arc::clone(&stop_flag);
+    let pdf_bytes = Arc::new(bytes);
+
+    let join_handle = std::thread::spawn(move || {
+        while !thread_stop.load(Ordering::SeqCst) {
+            match server.recv_timeout(Duration::from_millis(250)) {
+                Ok(Some(request)) => {
+                    let req_url = request.url().split('?').next().unwrap_or("/");
+                    if req_url == "/" || req_url == "/notes.pdf" {
+                        let disposition = format!("inline; filename=\"{}\"", safe_name);
+                        let mut response = tiny_http::Response::from_data(pdf_bytes.as_slice());
+                        if let Ok(h) = tiny_http::Header::from_bytes(
+                            &b"Content-Type"[..],
+                            &b"application/pdf"[..],
+                        ) {
+                            response.add_header(h);
+                        }
+                        if let Ok(h) = tiny_http::Header::from_bytes(
+                            &b"Content-Disposition"[..],
+                            disposition.as_bytes(),
+                        ) {
+                            response.add_header(h);
+                        }
+                        if let Ok(h) = tiny_http::Header::from_bytes(
+                            &b"Access-Control-Allow-Origin"[..],
+                            &b"*"[..],
+                        ) {
+                            response.add_header(h);
+                        }
+                        if let Ok(h) = tiny_http::Header::from_bytes(
+                            &b"Cache-Control"[..],
+                            &b"no-store"[..],
+                        ) {
+                            response.add_header(h);
+                        }
+                        let _ = request.respond(response);
+                    } else {
+                        let response =
+                            tiny_http::Response::from_string("Not Found").with_status_code(404);
+                        let _ = request.respond(response);
+                    }
+                }
+                Ok(None) => continue,
+                Err(_) => break,
+            }
+        }
+    });
+
+    if let Ok(mut guard) = state.0.lock() {
+        *guard = Some(ShareServerHandle {
+            stop_flag,
+            join_handle: Some(join_handle),
+        });
+    }
+
+    Ok(LocalShareInfo { url, ip, port })
+}
+
+#[tauri::command]
+fn stop_local_pdf_share(state: tauri::State<'_, LocalShareServer>) -> Result<(), String> {
+    if let Ok(mut guard) = state.0.lock() {
+        if let Some(mut handle) = guard.take() {
+            handle.stop();
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(PendingOpenFile(Mutex::new(None)))
+        .manage(LocalShareServer(Mutex::new(None)))
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.unminimize();
@@ -247,7 +426,9 @@ pub fn run() {
             save_recovery_session,
             load_recovery_session,
             clear_recovery_session,
-            take_startup_file_path
+            take_startup_file_path,
+            start_local_pdf_share,
+            stop_local_pdf_share
         ])
         .run(tauri::generate_context!())
         .expect("error while running Captnz Board");

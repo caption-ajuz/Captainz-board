@@ -277,13 +277,20 @@ export class FloatingOrb {
     this._bindSmartSwitch('toggle-vanish-slides', 'vanishSlides', 'captnz_smart_vanish_slides', onSmartToggleChange);
     this._bindSmartSwitch('toggle-smart-ink', 'smartInk', 'captnz_smart_ink', onSmartToggleChange);
     this._bindSmartSwitch('toggle-sticky-grid', 'stickyGrid', 'captnz_smart_sticky_grid', onSmartToggleChange);
-    document.getElementById('btn-quickshape-help')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const hintEl = document.getElementById('quickshape-hint');
-      if (hintEl) {
-        hintEl.classList.toggle('hidden');
-        if (this.isOpen) this._alignPanelSide();
-      }
+    [
+      ['btn-quickshape-help', 'quickshape-hint'],
+      ['btn-vanish-slides-help', 'vanish-slides-hint'],
+      ['btn-smart-ink-help', 'smart-ink-hint'],
+      ['btn-sticky-grid-help', 'sticky-grid-hint'],
+    ].forEach(([btnId, hintId]) => {
+      document.getElementById(btnId)?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const hintEl = document.getElementById(hintId);
+        if (hintEl) {
+          hintEl.classList.toggle('hidden');
+          if (this.isOpen) this._alignPanelSide();
+        }
+      });
     });
     this._syncSmartUI();
     onSmartToggleChange?.({ ...this.smartState });

@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0b0f17" />
   <title>Captnz Board</title>
   <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-256.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
 </head>
 <body>
   <!-- Board Stage -->
@@ -70,6 +73,7 @@
         <button id="btn-open-ppt" class="drawer-btn" data-i18n="openPpt">Open PPT / PPTX</button>
         <button id="btn-import-img" class="drawer-btn" data-i18n="importImage">Import Image</button>
         <button id="btn-export-pdf" class="drawer-btn primary" data-i18n="exportPdf">Export PDF</button>
+        <button id="btn-share-board" class="drawer-btn accent" data-i18n="shareBoard">Share Board</button>
       </div>
 
       <!-- Collapsible Open Recent -->
@@ -513,20 +517,28 @@
 
           <div class="smart-item">
             <div class="smart-toggle-row">
-              <span class="smart-title" data-i18n="smartVanishSlides">Auto-Vanish on Slides</span>
+              <div class="smart-label-group">
+                <span class="smart-title" data-i18n="smartVanishSlides">Auto-Vanish on Slides</span>
+                <button id="btn-vanish-slides-help" class="smart-help-btn" type="button" title="Presentation laser ink — strokes automatically fade away 3 seconds after lifting your pen so PDF slides stay clean." aria-label="Auto-Vanish on Slides details">?</button>
+              </div>
               <button id="toggle-vanish-slides" class="switch-btn" role="switch" aria-checked="false" type="button">
                 <span class="switch-knob"></span>
               </button>
             </div>
+            <p id="vanish-slides-hint" class="smart-help-hint hidden" data-i18n="smartVanishSlidesDesc">Presentation laser ink — strokes automatically fade away 3 seconds after lifting your pen so PDF slides stay clean.</p>
           </div>
 
           <div class="smart-item">
             <div class="smart-toggle-row">
-              <span class="smart-title" data-i18n="smartInkRec">Smart Ink</span>
+              <div class="smart-label-group">
+                <span class="smart-title" data-i18n="smartInkRec">Smart Ink</span>
+                <button id="btn-smart-ink-help" class="smart-help-btn" type="button" title="Converts handwritten English, Malayalam, or Arabic notes into crisp typed text using offline OCR language packs." aria-label="Smart Ink details">?</button>
+              </div>
               <button id="toggle-smart-ink" class="switch-btn" role="switch" aria-checked="false" type="button">
                 <span class="switch-knob"></span>
               </button>
             </div>
+            <p id="smart-ink-hint" class="smart-help-hint hidden" data-i18n="smartInkRecDesc">Converts handwritten English, Malayalam, or Arabic notes into crisp typed text using offline OCR language packs.</p>
             <div id="smart-ink-status" class="smart-sub-row hidden">
               <span data-i18n="smartInkReady">Local hook active:</span>
               <strong id="smart-ink-last">—</strong>
@@ -535,11 +547,15 @@
 
           <div class="smart-item">
             <div class="smart-toggle-row">
-              <span class="smart-title" data-i18n="smartStickyGrid">Sticky Notes &amp; Grid</span>
+              <div class="smart-label-group">
+                <span class="smart-title" data-i18n="smartStickyGrid">Sticky Notes &amp; Grid</span>
+                <button id="btn-sticky-grid-help" class="smart-help-btn" type="button" title="Enables draggable classroom sticky notes and snaps items neatly to the background dot grid." aria-label="Sticky Notes and Grid details">?</button>
+              </div>
               <button id="toggle-sticky-grid" class="switch-btn" role="switch" aria-checked="false" type="button">
                 <span class="switch-knob"></span>
               </button>
             </div>
+            <p id="sticky-grid-hint" class="smart-help-hint hidden" data-i18n="smartStickyGridDesc">Enables draggable classroom sticky notes and snaps items neatly to the background dot grid.</p>
             <div id="sticky-tray" class="sticky-tray hidden">
               <span class="sticky-tray-lbl" data-i18n="addStickyNote">Drop Note:</span>
               <div class="sticky-colors">
@@ -626,6 +642,58 @@
       <div class="update-modal-actions">
         <button id="btn-update-dismiss" class="pill-btn" data-i18n="updateLater">Later</button>
         <button id="btn-update-install" class="pill-btn accent" data-i18n="updateInstall">Download &amp; Restart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Smart Hybrid QR Share Modal -->
+  <div id="share-modal-backdrop" class="update-modal-backdrop hidden" aria-hidden="true" inert>
+    <div id="share-modal" class="share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
+      <div class="share-modal-header">
+        <div class="share-title-group">
+          <h2 id="share-modal-title" class="update-modal-title" data-i18n="shareTitle">Share Board</h2>
+          <span id="share-mode-badge" class="share-mode-badge" data-mode="online">Online</span>
+        </div>
+        <button id="btn-close-share" class="icon-btn-sm" aria-label="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="share-tabs" role="tablist">
+        <button id="share-tab-pdf" class="share-tab-btn active" type="button" data-i18n="shareTabPdf">PDF QR</button>
+        <button id="share-tab-text" class="share-tab-btn" type="button" data-i18n="shareTabText">Text / Formula QR</button>
+      </div>
+
+      <!-- Tab 1: Hybrid PDF QR (Online Direct-Download or Offline Local Hotspot) -->
+      <div id="share-pane-pdf" class="share-pane">
+        <div id="share-pdf-status" class="share-status-box">Generating PDF...</div>
+        <div id="share-pdf-qr-wrap" class="share-qr-wrap hidden">
+          <div class="share-qr-frame">
+            <img id="share-pdf-qr-img" class="share-qr-img" alt="Board PDF QR Code" />
+          </div>
+          <p id="share-pdf-hint" class="share-hint"></p>
+          <code id="share-pdf-url" class="share-url-chip"></code>
+        </div>
+        <button id="btn-share-hotspot-mode" class="share-mode-toggle hidden" type="button"></button>
+      </div>
+
+      <!-- Tab 2: Pure Offline Text / Formula QR -->
+      <div id="share-pane-text" class="share-pane hidden">
+        <textarea id="share-text-input" class="share-text-input" rows="3" placeholder="Type or edit board text / formula for pure offline QR..."></textarea>
+        <div class="share-qr-frame">
+          <img id="share-text-qr-img" class="share-qr-img hidden" alt="Text QR Code" />
+          <div id="share-text-qr-empty" class="share-qr-empty" data-i18n="shareTextEmpty">Type text or a formula above to generate an offline QR code.</div>
+        </div>
+      </div>
+
+      <!-- Zero-Connection Alternatives -->
+      <div class="share-footer-actions">
+        <button id="btn-share-nearby" class="pill-btn" type="button" data-i18n="shareNearby">Nearby / System Share</button>
+        <button id="btn-share-save-pdf" class="pill-btn" type="button" data-i18n="shareSavePdf">Save PDF</button>
+        <button id="btn-share-save-cboard" class="pill-btn accent" type="button" data-i18n="shareSaveCboard">Save .cboard</button>
       </div>
     </div>
   </div>

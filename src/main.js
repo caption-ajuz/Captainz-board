@@ -38,6 +38,7 @@ import { SlideDrawer } from './ui/drawer.js';
 import { FloatingOrb } from './ui/floatingOrb.js';
 import { NavControls } from './ui/navControls.js';
 import { PeriodicTableModal } from './ui/periodicModal.js';
+import { ShareModal } from './ui/shareModal.js';
 
 const PERMANENT_BRUSHES = new Set([
   'technical',
@@ -685,6 +686,35 @@ drawer = new SlideDrawer({
       showToast(err?.message || 'Export failed', 3500);
     }
   },
+  onShareBoard: () => {
+    shareModal?.open();
+  },
+});
+
+const shareModal = new ShareModal({
+  pageManager,
+  inkEngine,
+  showToast,
+  onSavePdf: async () => {
+    try {
+      showToast(t('toastExporting'), 5000);
+      const ok = await exportSessionToPdf(pageManager, inkEngine);
+      if (ok) showToast(t('toastExportSuccess'), 2800);
+    } catch (err) {
+      showToast(err?.message || 'Export failed', 3500);
+    }
+  },
+  onSaveCboard: async () => {
+    try {
+      const res = await saveCboardProject(pageManager);
+      if (!res) return;
+      await recordRecentFile({ name: res.name, kind: 'cboard', path: res.path, bytes: res.bytes });
+      drawer.renderRecentFiles();
+      showToast(t('toastProjectSaved'));
+    } catch (err) {
+      showToast(err?.message || 'Could not save .cboard project', 3500);
+    }
+  },
 });
 
 // 9. Page Manager
@@ -934,3 +964,91 @@ async function initAutoUpdater() {
 setTimeout(() => {
   initAutoUpdater();
 }, 1500);
+
+// ==================== Offline PWA Service Worker & File Handlers ====================
+async function handleOpenedWebFile(file) {
+  if (!file) return false;
+  const name = file.name || 'shared-file';
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  try {
+    if (ext === 'cboard' || file.type === 'application/x-captnz-board') {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      await loadCboardFromBytes(bytes, pageManager);
+      await recordRecentFile({ name, kind: 'cboard', path: null, bytes });
+      drawer.renderRecentFiles();
+      showToast(`${t('toastProjectLoaded')}: ${name}`);
+      recoveryStore.scheduleSave(pageManager);
+      return true;
+    }
+    if (ext === 'pdf' || file.type === 'application/pdf') {
+      const rawBytes = new Uint8Array(await file.arrayBuffer());
+      const pdfDoc = await loadPdfFromBytes(rawBytes);
+      pageManager.loadPdfDocument(`pdf_${Date.now()}`, pdfDoc, rawBytes, true);
+      await recordRecentFile({ name, kind: 'pdf', path: null, bytes: rawBytes });
+      drawer.renderRecentFiles();
+      showToast(`${t('toastPdfLoaded')}: ${name}`);
+      recoveryStore.scheduleSave(pageManager);
+      return true;
+    }
+    if (['png', 'jpg', 'jpeg', 'webp'].includes(ext) || file.type.startsWith('image/')) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      pageManager.addImagePage(dataUrl);
+      await recordRecentFile({ name, kind: 'image', path: null, dataUrl });
+      drawer.renderRecentFiles();
+      showToast(`${t('toastImageAdded')}: ${name}`);
+      recoveryStore.scheduleSave(pageManager);
+      return true;
+    }
+  } catch (err) {
+    showToast(err?.message || 'Could not open file', 3500);
+  }
+  return false;
+}
+
+if ('serviceWorker' in navigator && !isTauriRuntime()) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {
+      // Non-fatal if SW registration is unavailable
+    });
+  });
+}
+
+if ('launchQueue' in window && typeof window.launchQueue.setConsumer === 'function') {
+  window.launchQueue.setConsumer(async (launchParams) => {
+    if (!launchParams?.files?.length) return;
+    for (const handle of launchParams.files) {
+      try {
+        const file = await handle.getFile();
+        await handleOpenedWebFile(file);
+      } catch {
+        // Ignore unreadable file handle
+      }
+    }
+  });
+}
+
+(async () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('shared') === '1' && 'caches' in window) {
+    try {
+      const cache = await caches.open('captnz-share-target-v1');
+      const res = await cache.match('/__shared_file__');
+      if (res) {
+        const blob = await res.blob();
+        const rawName = res.headers.get('X-Shared-Filename');
+        const name = rawName ? decodeURIComponent(rawName) : 'shared-file';
+        const file = new File([blob], name, { type: blob.type });
+        await cache.delete('/__shared_file__');
+        await handleOpenedWebFile(file);
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch {
+      // Ignore share cache read errors
+    }
+  }
+})();

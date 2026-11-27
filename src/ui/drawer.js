@@ -13,6 +13,7 @@ export class SlideDrawer {
     onOpenPpt,
     onImportImage,
     onExportPdf,
+    onShareBoard,
     onOpenRecent,
     onRemoveRecent,
     getRecentFiles,
@@ -66,6 +67,7 @@ export class SlideDrawer {
       ['btn-open-ppt', onOpenPpt],
       ['btn-import-img', onImportImage],
       ['btn-export-pdf', onExportPdf],
+      ['btn-share-board', onShareBoard],
       ['btn-clear-page', onClearPage],
       ['btn-new-session', onNewBoard],
     ];

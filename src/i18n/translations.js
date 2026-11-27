@@ -54,7 +54,7 @@ export const TRANSLATIONS = {
     placeShort: 'Place',
     chemVsepr: 'VSEPR',
     smartVanishSlides: 'Auto-Vanish on Slides',
-    smartVanishSlidesDesc: 'Auto-use Vanishing Pen when viewing PDF / PPT slides.',
+    smartVanishSlidesDesc: 'Presentation laser ink — strokes automatically fade away 3 seconds after lifting your pen so PDF slides stay clean.',
     packReady: 'Ready ✓',
     packNotInstalled: 'Not Installed',
     packDownloading: 'Downloading',
@@ -83,10 +83,10 @@ export const TRANSLATIONS = {
     smartQuickShape: 'QuickShape',
     smartQuickShapeDesc: 'Hold 450ms to snap line, arrow, circle, rect, triangle.',
     smartInkRec: 'Smart Ink',
-    smartInkRecDesc: 'Local offline stroke pattern hook.',
+    smartInkRecDesc: 'Converts handwritten English, Malayalam, or Arabic notes into crisp typed text using offline OCR language packs.',
     smartInkReady: 'Local hook active:',
     smartStickyGrid: 'Sticky Notes & Grid',
-    smartStickyGridDesc: 'Place color notes & snap stamps to 24px grid.',
+    smartStickyGridDesc: 'Enables draggable classroom sticky notes and snaps items neatly to the background dot grid.',
     addStickyNote: 'Drop Note:',
     undo: 'Undo',
     redo: 'Redo',
@@ -119,6 +119,26 @@ export const TRANSLATIONS = {
     updateLater: 'Later',
     updateInstall: 'Download & Restart',
     updateDownloading: 'Downloading update...',
+    shareBoard: 'Share Board',
+    shareTitle: 'Share Board',
+    shareTabPdf: 'PDF QR',
+    shareTabText: 'Text / Formula QR',
+    shareModeOnline: 'Online (1h Auto-Expire)',
+    shareModeHotspot: 'Offline Hotspot / LAN',
+    shareModeOffline: 'Offline',
+    shareGeneratingPdf: 'Generating crisp PDF...',
+    shareUploading: 'Uploading for direct-download QR...',
+    shareOnlineHint: 'Students can scan with mobile data to download the PDF immediately.',
+    shareHotspotHint: 'Connect to Board Hotspot & Scan — No Internet Required',
+    shareWebOfflineNotice: 'No internet detected. Use Text / Formula QR, Nearby Share, or Save PDF below.',
+    shareSwitchHotspot: 'Use Offline Hotspot Instead',
+    shareSwitchOnline: 'Use Online Direct-Download QR',
+    shareRetryHotspot: 'Refresh Local Hotspot QR',
+    shareTextEmpty: 'Type text or a formula above to generate an offline QR code.',
+    shareNearby: 'Nearby / System Share',
+    shareSavePdf: 'Save PDF',
+    shareSaveCboard: 'Save .cboard',
+    shareNearbyUnsupported: 'System/Nearby Share is not supported on this browser/device.',
   },
   ml: {
     dir: 'ltr',
@@ -387,9 +407,16 @@ export function applyLanguage(lang) {
       el.textContent = dict[key];
     }
   });
-  const helpBtn = document.getElementById('btn-quickshape-help');
-  if (helpBtn && dict.smartQuickShapeDesc) {
-    helpBtn.title = dict.smartQuickShapeDesc;
-  }
+  [
+    ['btn-quickshape-help', 'smartQuickShapeDesc'],
+    ['btn-vanish-slides-help', 'smartVanishSlidesDesc'],
+    ['btn-smart-ink-help', 'smartInkRecDesc'],
+    ['btn-sticky-grid-help', 'smartStickyGridDesc'],
+  ].forEach(([btnId, descKey]) => {
+    const helpBtn = document.getElementById(btnId);
+    if (helpBtn && dict[descKey]) {
+      helpBtn.title = dict[descKey];
+    }
+  });
   localStorage.setItem('captnz_lang', lang);
 }
