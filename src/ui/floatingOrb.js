@@ -68,6 +68,7 @@ export class FloatingOrb {
     this.dock = document.getElementById('toolbox-orb-dock');
     this.btnToggle = document.getElementById('btn-orb-toggle');
     this.panel = document.getElementById('orb-panel');
+    this.orbTabsEl = this.panel.querySelector('.orb-tabs');
     this.ring = document.getElementById('orb-color-ring');
     this.activeIcon = document.getElementById('orb-active-icon');
     this.sizeBadge = document.getElementById('orb-size-badge');
@@ -75,6 +76,7 @@ export class FloatingOrb {
     this.btnTouchLock = document.getElementById('btn-touch-lock');
     this.touchLockIcon = document.getElementById('touch-lock-icon');
     this.btnResetZoom = document.getElementById('btn-reset-zoom');
+    this.zoomReadoutText = document.getElementById('zoom-readout-text');
     this.slider = document.getElementById('stroke-size-slider');
     this.sizeVal = document.getElementById('stroke-size-val');
     this.sizeDot = document.getElementById('size-preview-dot');
@@ -88,6 +90,7 @@ export class FloatingOrb {
     this.vanishFadeSlider = document.getElementById('vanish-fade-slider');
     this.vanishFadeVal = document.getElementById('vanish-fade-val');
     this.customColor = document.getElementById('custom-color-input');
+    this.customColorWrap = this.customColor?.closest('.color-picker-wrap') || null;
     this.chemGrid = document.getElementById('chem-stencil-grid');
     this.formulaInput = document.getElementById('chem-formula-input');
     this.formulaPreview = document.getElementById('chem-formula-preview');
@@ -274,6 +277,14 @@ export class FloatingOrb {
     this._bindSmartSwitch('toggle-vanish-slides', 'vanishSlides', 'captnz_smart_vanish_slides', onSmartToggleChange);
     this._bindSmartSwitch('toggle-smart-ink', 'smartInk', 'captnz_smart_ink', onSmartToggleChange);
     this._bindSmartSwitch('toggle-sticky-grid', 'stickyGrid', 'captnz_smart_sticky_grid', onSmartToggleChange);
+    document.getElementById('btn-quickshape-help')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const hintEl = document.getElementById('quickshape-hint');
+      if (hintEl) {
+        hintEl.classList.toggle('hidden');
+        if (this.isOpen) this._alignPanelSide();
+      }
+    });
     this._syncSmartUI();
     onSmartToggleChange?.({ ...this.smartState });
 
@@ -353,34 +364,32 @@ export class FloatingOrb {
     for (const pack of LANGUAGE_PACKS) {
       const st = statuses[pack.code] || { installed: false };
       const prog = this._packProgress[pack.code];
+      const cleanSize = pack.sizeHint.replace(/^~/, '');
 
       const row = document.createElement('div');
       row.className = 'ocr-pack-row';
 
-      const meta = document.createElement('div');
-      meta.className = 'ocr-pack-meta';
-      const title = document.createElement('span');
-      title.className = 'ocr-pack-name';
-      title.textContent = `${pack.name} (${pack.native})`;
-
-      const status = document.createElement('span');
-      status.className = `ocr-pack-status${st.installed ? ' ready' : ''}`;
-      if (typeof prog === 'number') {
-        status.textContent = `${t('packDownloading')} ${prog}%`;
-      } else if (st.installed) {
-        status.textContent = `${t('packReady')} ✓`;
-      } else {
-        status.textContent = `${t('packNotInstalled')} · ${pack.sizeHint}`;
-      }
-      meta.appendChild(title);
-      meta.appendChild(status);
+      const label = document.createElement('span');
+      label.className = 'ocr-pack-name';
+      label.textContent =
+        typeof prog === 'number'
+          ? `${pack.name} • ${prog}%`
+          : `${pack.name} • ${cleanSize}`;
+      label.title = `${pack.name} (${pack.native})`;
 
       const actionBtn = document.createElement('button');
       actionBtn.type = 'button';
-      actionBtn.className = `ocr-pack-btn${st.installed ? ' remove' : ''}`;
+      actionBtn.className = `ocr-pack-btn${st.installed ? ' ready' : ''}`;
       actionBtn.disabled = typeof prog === 'number';
-      actionBtn.textContent =
-        typeof prog === 'number' ? `${prog}%` : st.installed ? t('removePack') : t('downloadPack');
+      if (typeof prog === 'number') {
+        actionBtn.textContent = `${prog}%`;
+      } else if (st.installed) {
+        actionBtn.textContent = t('packReady');
+        actionBtn.title = `${t('removePack')} ${pack.name}`;
+      } else {
+        actionBtn.textContent = t('downloadPack');
+        actionBtn.title = `${t('downloadPack')} ${pack.name} (${cleanSize})`;
+      }
 
       actionBtn.addEventListener('click', async () => {
         if (st.installed) {
@@ -392,7 +401,7 @@ export class FloatingOrb {
           try {
             await this.onDownloadOcrPack?.(pack.code, (pct) => {
               this._packProgress[pack.code] = pct;
-              status.textContent = `${t('packDownloading')} ${pct}%`;
+              label.textContent = `${pack.name} • ${pct}%`;
               actionBtn.textContent = `${pct}%`;
             });
           } finally {
@@ -402,7 +411,7 @@ export class FloatingOrb {
         }
       });
 
-      row.appendChild(meta);
+      row.appendChild(label);
       row.appendChild(actionBtn);
       this.ocrPacksList.appendChild(row);
     }
@@ -447,6 +456,8 @@ export class FloatingOrb {
 
   setTab(tab) {
     this.activeTab = tab;
+    const tabOrder = { pens: 0, kits: 1, smart: 2 };
+    this.orbTabsEl?.style.setProperty('--orb-tab-index', String(tabOrder[tab] ?? 0));
     this.panel.querySelectorAll('.orb-tab-btn').forEach((btn) => {
       const active = btn.dataset.tab === tab;
       btn.classList.toggle('active', active);
@@ -557,16 +568,27 @@ export class FloatingOrb {
     this.currentColor = color;
     this.ring.style.borderColor = color;
     this.sizeDot.style.background = color;
+    let matchedPreset = false;
     this.panel.querySelectorAll('.color-swatch').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.color.toLowerCase() === color.toLowerCase());
+      const isMatch = btn.dataset.color.toLowerCase() === color.toLowerCase();
+      if (isMatch) matchedPreset = true;
+      btn.classList.toggle('active', isMatch);
     });
+    if (this.customColorWrap) {
+      this.customColorWrap.classList.toggle('active', !matchedPreset);
+      if (!matchedPreset) {
+        this.customColorWrap.style.setProperty('--custom-swatch', color);
+      } else {
+        this.customColorWrap.style.removeProperty('--custom-swatch');
+      }
+    }
   }
 
   setSize(size) {
     this.slider.value = String(size);
-    this.sizeVal.textContent = String(size);
+    this.sizeVal.textContent = `${size}px`;
     if (this.sizeBadge) this.sizeBadge.textContent = String(size);
-    const dotPx = Math.max(5, Math.min(20, Math.round(size * 0.55) + 4));
+    const dotPx = Math.max(4, Math.min(20, Math.round(size * 0.52) + 3));
     this.sizeDot.style.width = `${dotPx}px`;
     this.sizeDot.style.height = `${dotPx}px`;
   }
@@ -600,14 +622,12 @@ export class FloatingOrb {
       this.touchLockIcon.innerHTML = this.touchLocked ? LOCK_ICON_PATHS : HAND_ICON_PATHS;
     }
     if (this.btnTouchLock) {
+      const key = this.touchLocked ? 'touchLockOn' : 'touchLockOff';
+      const label = t(key);
       this.btnTouchLock.classList.toggle('active', this.touchLocked);
       this.btnTouchLock.setAttribute('aria-pressed', String(this.touchLocked));
-      const labelEl = this.btnTouchLock.querySelector('[data-i18n]');
-      if (labelEl) {
-        const key = this.touchLocked ? 'touchLockOn' : 'touchLockOff';
-        labelEl.setAttribute('data-i18n', key);
-        labelEl.textContent = t(key);
-      }
+      this.btnTouchLock.setAttribute('aria-label', label);
+      this.btnTouchLock.title = label;
     }
     this.lockBadge?.classList.toggle('hidden', !this.touchLocked);
   }
@@ -615,16 +635,17 @@ export class FloatingOrb {
   setZoomDisplay({ mode = 'fit-page', isPortrait = false, scale = 1 } = {}) {
     if (!this.btnResetZoom) return;
     const pct = `${Math.round(scale * 100)}%`;
+    const targetEl = this.zoomReadoutText || this.btnResetZoom;
     this.btnResetZoom.classList.toggle('is-zoomed', Math.abs(scale - 1) > 0.02);
     if (isPortrait) {
       const nextKey = mode === 'fit-width' ? 'fitPage' : 'fitWidth';
       const nextLabel = t(nextKey);
-      this.btnResetZoom.setAttribute('data-i18n', nextKey);
-      this.btnResetZoom.textContent = nextLabel;
+      targetEl.setAttribute('data-i18n', nextKey);
+      targetEl.textContent = nextLabel;
       this.btnResetZoom.title = `${nextLabel} (${pct}, Ctrl+0)`;
     } else {
-      this.btnResetZoom.removeAttribute('data-i18n');
-      this.btnResetZoom.textContent = Math.abs(scale - 1) < 0.03 ? '100%' : pct;
+      targetEl.removeAttribute('data-i18n');
+      targetEl.textContent = Math.abs(scale - 1) < 0.03 ? '100%' : pct;
       this.btnResetZoom.title = `${t('fitPage')} (${pct}, Ctrl+0)`;
     }
   }

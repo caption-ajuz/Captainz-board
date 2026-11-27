@@ -33,7 +33,28 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and release Windows installer
+      - name: Configure updater signing mode
+        id: updater
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          $conf = Get-Content -Raw src-tauri/tauri.conf.json | ConvertFrom-Json
+          $pubkey = $conf.plugins.updater.pubkey
+          $hasKey = -not [string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)
+          $hasPubkey = (-not [string]::IsNullOrWhiteSpace($pubkey)) -and ($pubkey -ne 'REPLACE_WITH_TAURI_SIGNING_PUBLIC_KEY')
+          if ($hasKey -and $hasPubkey) {
+            "signed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            Write-Host "::warning::TAURI_SIGNING_PRIVATE_KEY or updater pubkey is not configured; building Windows installers without updater signing artifacts."
+            $overridePath = Join-Path $env:RUNNER_TEMP "tauri.unsigned.conf.json"
+            '{"bundle":{"createUpdaterArtifacts":false},"plugins":{"updater":{"pubkey":""}}}' | Out-File -FilePath $overridePath -Encoding utf8
+            "signed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "override_config=$overridePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
+      - name: Build and release Windows installer (with updater manifest)
+        if: steps.updater.outputs.signed == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,4 +66,21 @@ jobs:
           releaseBody: 'Windows installer and auto-updater manifest (`latest.json`) for Captnz Board ${{ github.ref_name }}.'
           releaseDraft: false
           prerelease: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          projectPath: .
+
+      - name: Build and release Windows installer (unsigned updater fallback)
+        if: steps.updater.outputs.signed != 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Captnz Board ${{ github.ref_name }}'
+          releaseBody: 'Windows installer for Captnz Board ${{ github.ref_name }}.'
+          releaseDraft: false
+          prerelease: false
+          uploadUpdaterJson: false
+          args: --config "${{ steps.updater.outputs.override_config }}"
           projectPath: .

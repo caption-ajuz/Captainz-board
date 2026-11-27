@@ -169,8 +169,9 @@
   <!-- Floating Toolbox Orb (Nested Pens | Kits | Smart) -->
   <div id="toolbox-orb-dock" class="draggable-dock toolbox-orb-dock" data-drag-id="toolbox-orb">
     <div id="orb-panel" class="orb-panel hidden" role="toolbar" aria-label="Drawing Tools">
-      <!-- Top Segmented Tabs -->
-      <div class="orb-tabs" role="tablist">
+      <!-- Top Segmented Pill Bar -->
+      <div class="orb-tabs" role="tablist" style="--orb-tab-index: 0;">
+        <span class="orb-tabs-slider" aria-hidden="true"></span>
         <button class="orb-tab-btn active" data-tab="pens" role="tab" aria-selected="true" data-i18n="tabPens">Pens</button>
         <button class="orb-tab-btn" data-tab="kits" role="tab" aria-selected="false" data-i18n="tabKits">Kits</button>
         <button class="orb-tab-btn" data-tab="smart" role="tab" aria-selected="false" data-i18n="tabSmart">Smart</button>
@@ -178,196 +179,150 @@
 
       <!-- TAB 1: PENS -->
       <div class="orb-tab-pane" data-pane="pens">
-        <!-- 8-Brush Grid -->
-        <div class="panel-group">
-          <div class="brush-grid-4">
-            <button class="tool-btn" data-tool="technical" title="Technical Pen">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2l4 7-4 13L8 9l4-7z" />
-                  <line x1="8" y1="9" x2="16" y2="9" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolTechnical">Technical</span>
-            </button>
-            <button class="tool-btn active" data-tool="calligraphy" title="Calligraphy / Fountain Nib">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 19l7-7 3 3-7 7-3-3z" />
-                  <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-                  <path d="M2 2l7.586 7.586" />
-                  <circle cx="11" cy="11" r="2" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolCalligraphy">Calligraphy</span>
-            </button>
-            <button class="tool-btn" data-tool="chalk" title="Blackboard Chalk">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="7" y="4" width="10" height="16" rx="2" transform="rotate(28 12 12)" />
-                  <line x1="5" y1="20" x2="19" y2="20" stroke-dasharray="2 3" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolChalk">Chalk</span>
-            </button>
-            <button class="tool-btn" data-tool="pencil" title="Soft Sketch Pencil">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                  <path d="M14 6l4 4" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolPencil">Pencil</span>
-            </button>
-            <button class="tool-btn" data-tool="marker" title="Monoline Marker">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17 3a2.83 2.83 0 1 1 4 4L8 20l-5 1 1-5Z" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolMarker">Marker</span>
-            </button>
-            <button class="tool-btn" data-tool="dashed" title="Dashed / Dotted Pen">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-                  <path d="M4 18L20 6" stroke-dasharray="3.5 3.5" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolDashed">Dashed</span>
-            </button>
-            <button class="tool-btn" data-tool="highlighter" title="Behind-Ink Highlighter">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 11l-6 6v3h9l3-3" />
-                  <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolHighlighter">Highlight</span>
-            </button>
-            <button class="tool-btn" data-tool="vanishing" title="Vanishing Ink (Auto-Fades)">
-              <span class="tool-ico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 18c4-6 8-6 12 0" />
-                  <path d="M12 4v3" />
-                  <path d="M6.5 7.5l2 2" />
-                  <path d="M17.5 7.5l-2 2" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolVanishing">Vanishing</span>
-            </button>
-          </div>
+        <!-- 4x2 Borderless Brush Selector -->
+        <div class="brush-grid-4">
+          <button class="tool-btn" data-tool="technical" title="Technical Pen">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l4 7-4 13L8 9l4-7z" />
+                <line x1="8" y1="9" x2="16" y2="9" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolTechnical">Technical</span>
+          </button>
+          <button class="tool-btn active" data-tool="calligraphy" title="Fountain / Calligraphy Nib">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                <path d="M2 2l7.586 7.586" />
+                <circle cx="11" cy="11" r="2" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolCalligraphy">Fountain</span>
+          </button>
+          <button class="tool-btn" data-tool="chalk" title="Blackboard Chalk">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="7" y="4" width="10" height="16" rx="2" transform="rotate(28 12 12)" />
+                <line x1="5" y1="20" x2="19" y2="20" stroke-dasharray="2 3" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolChalk">Chalk</span>
+          </button>
+          <button class="tool-btn" data-tool="pencil" title="Soft Sketch Pencil">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                <path d="M14 6l4 4" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolPencil">Pencil</span>
+          </button>
+          <button class="tool-btn" data-tool="marker" title="Monoline Marker">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.83 2.83 0 1 1 4 4L8 20l-5 1 1-5Z" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolMarker">Marker</span>
+          </button>
+          <button class="tool-btn" data-tool="dashed" title="Dashed / Dotted Pen">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+                <path d="M4 18L20 6" stroke-dasharray="3.5 3.5" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolDashed">Dashed</span>
+          </button>
+          <button class="tool-btn" data-tool="highlighter" title="Behind-Ink Highlighter">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l-6 6v3h9l3-3" />
+                <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolHighlighter">Highlight</span>
+          </button>
+          <button class="tool-btn" data-tool="vanishing" title="Vanishing Ink (Auto-Fades)">
+            <span class="tool-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 18c4-6 8-6 12 0" />
+                <path d="M12 4v3" />
+                <path d="M6.5 7.5l2 2" />
+                <path d="M17.5 7.5l-2 2" />
+              </svg>
+            </span>
+            <span class="tool-lbl" data-i18n="toolVanishing">Vanish</span>
+          </button>
         </div>
 
-        <!-- Contextual Brush Control: Calligraphy Nib Angle (30-45°) -->
-        <div id="nib-angle-row" class="context-control-row">
-          <div class="aligned-slider-row">
-            <span class="slider-lbl" data-i18n="nibAngle">Nib Angle</span>
-            <input id="nib-angle-slider" type="range" min="30" max="45" value="38" step="1" aria-label="Calligraphy Nib Angle" />
-            <span id="nib-angle-val" class="slider-val">38°</span>
-          </div>
+        <!-- Compact Horizontal Utility Strip (Stroke, Pixel, Lasers, Lasso, Pan) -->
+        <div class="tool-row-6" role="group" aria-label="Utility Tools">
+          <button class="tool-btn compact" data-tool="eraser-stroke" title="Stroke Eraser (tap stroke)" aria-label="Stroke Eraser">
+            <span class="tool-ico">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 21h10" />
+                <path d="M5.5 13.5L13 6a2.12 2.12 0 0 1 3 0l3 3a2.12 2.12 0 0 1 0 3l-7.5 7.5a2 2 0 0 1-1.4.6H7.4a2 2 0 0 1-1.4-.6l-1.5-1.5a2.12 2.12 0 0 1 0-3z" />
+              </svg>
+            </span>
+          </button>
+          <button class="tool-btn compact" data-tool="eraser-pixel" title="Pixel Eraser" aria-label="Pixel Eraser">
+            <span class="tool-ico">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13l-8 8H5l-2-2 9-9 6 3z" />
+                <path d="M12 10l4-4 5 5-4 4" />
+              </svg>
+            </span>
+          </button>
+          <button class="tool-btn compact" data-tool="laser-red" title="Red Laser Pointer" aria-label="Red Laser">
+            <span class="tool-ico"><span class="laser-dot red"></span></span>
+          </button>
+          <button class="tool-btn compact" data-tool="laser-blue" title="Blue Laser Pointer" aria-label="Blue Laser">
+            <span class="tool-ico"><span class="laser-dot blue"></span></span>
+          </button>
+          <button class="tool-btn compact" data-tool="lasso" title="Lasso Snip &amp; To Text" aria-label="Lasso">
+            <span class="tool-ico">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="10" rx="8" ry="5.5" stroke-dasharray="3.5 2.5" />
+                <path d="M9 15.5c0 2.5 2 4 4.5 4" />
+              </svg>
+            </span>
+          </button>
+          <button class="tool-btn compact" data-tool="hand" title="Hand / Pan Canvas" aria-label="Pan Canvas">
+            <span class="tool-ico">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 11V6a2 2 0 0 0-4 0v4" />
+                <path d="M14 10V4a2 2 0 0 0-4 0v6" />
+                <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
+                <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+              </svg>
+            </span>
+          </button>
         </div>
 
-        <!-- Contextual Brush Control: Dashed vs Dotted -->
-        <div id="dash-style-row" class="context-control-row hidden">
-          <div class="context-inline-row">
-            <span class="slider-lbl" data-i18n="lineStyle">Pattern</span>
-            <div class="mini-seg">
-              <button type="button" class="mini-seg-btn active" data-dash="dashed" data-i18n="styleDashed">Dashed</button>
-              <button type="button" class="mini-seg-btn" data-dash="dotted" data-i18n="styleDotted">Dotted</button>
-            </div>
-          </div>
+        <!-- Single-Row Tactile Color Swatches -->
+        <div class="swatch-row-compact" id="color-swatches">
+          <button class="color-swatch active" data-color="#111827" style="--swatch:#111827" aria-label="Ink Black" title="Black"></button>
+          <button class="color-swatch" data-color="#ffffff" style="--swatch:#ffffff" aria-label="Chalk White" title="White"></button>
+          <button class="color-swatch" data-color="#ef4444" style="--swatch:#ef4444" aria-label="Crimson Red" title="Red"></button>
+          <button class="color-swatch" data-color="#2563eb" style="--swatch:#2563eb" aria-label="Royal Blue" title="Blue"></button>
+          <button class="color-swatch" data-color="#10b981" style="--swatch:#10b981" aria-label="Emerald Green" title="Green"></button>
+          <button class="color-swatch" data-color="#f59e0b" style="--swatch:#f59e0b" aria-label="Amber Gold" title="Amber"></button>
+          <button class="color-swatch" data-color="#8b5cf6" style="--swatch:#8b5cf6" aria-label="Violet" title="Violet"></button>
+          <label class="color-picker-wrap" title="Custom Color">
+            <input type="color" id="custom-color-input" value="#06b6d4" aria-label="Custom Color" />
+            <span class="color-wheel-icon" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </span>
+          </label>
         </div>
 
-        <!-- Contextual Brush Control: Vanishing Fade Time (1s-15s) -->
-        <div id="vanish-fade-row" class="context-control-row hidden">
-          <div class="aligned-slider-row">
-            <span class="slider-lbl" data-i18n="vanishFade">Fade Time</span>
-            <input id="vanish-fade-slider" type="range" min="1" max="15" value="4" step="1" aria-label="Vanishing Fade Seconds" />
-            <span id="vanish-fade-val" class="slider-val">4s</span>
-          </div>
-          <div class="quick-pill-row">
-            <button type="button" class="mini-seg-btn" data-vanish-sec="2">2s</button>
-            <button type="button" class="mini-seg-btn" data-vanish-sec="5">5s</button>
-            <button type="button" class="mini-seg-btn" data-vanish-sec="10">10s</button>
-          </div>
-        </div>
-
-        <!-- Secondary Utility Row: Stroke Erase, Pixel Erase, Lasers, Lasso, Hand/Pan -->
-        <div class="panel-group">
-          <div class="tool-row-6">
-            <button class="tool-btn compact" data-tool="eraser-stroke" title="Stroke Eraser (tap stroke)">
-              <span class="tool-ico">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M7 21h10" />
-                  <path d="M5.5 13.5L13 6a2.12 2.12 0 0 1 3 0l3 3a2.12 2.12 0 0 1 0 3l-7.5 7.5a2 2 0 0 1-1.4.6H7.4a2 2 0 0 1-1.4-.6l-1.5-1.5a2.12 2.12 0 0 1 0-3z" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolEraserStroke">Stroke</span>
-            </button>
-            <button class="tool-btn compact" data-tool="eraser-pixel" title="Pixel Eraser">
-              <span class="tool-ico">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 13l-8 8H5l-2-2 9-9 6 3z" />
-                  <path d="M12 10l4-4 5 5-4 4" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolEraserPixel">Pixel</span>
-            </button>
-            <button class="tool-btn compact" data-tool="laser-red" title="Red Laser Pointer">
-              <span class="tool-ico"><span class="laser-dot red"></span></span>
-              <span class="tool-lbl" data-i18n="toolLaserRed">Laser R</span>
-            </button>
-            <button class="tool-btn compact" data-tool="laser-blue" title="Blue Laser Pointer">
-              <span class="tool-ico"><span class="laser-dot blue"></span></span>
-              <span class="tool-lbl" data-i18n="toolLaserBlue">Laser B</span>
-            </button>
-            <button class="tool-btn compact" data-tool="lasso" title="Lasso Snip & To Text">
-              <span class="tool-ico">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <ellipse cx="12" cy="10" rx="8" ry="5.5" stroke-dasharray="3.5 2.5" />
-                  <path d="M9 15.5c0 2.5 2 4 4.5 4" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolLasso">Lasso</span>
-            </button>
-            <button class="tool-btn compact" data-tool="hand" title="Hand / Pan Canvas">
-              <span class="tool-ico">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 11V6a2 2 0 0 0-4 0v4" />
-                  <path d="M14 10V4a2 2 0 0 0-4 0v6" />
-                  <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
-                  <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-                </svg>
-              </span>
-              <span class="tool-lbl" data-i18n="toolHand">Pan</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Compact 30px Color Swatches (4x2) -->
-        <div class="panel-group">
-          <div class="swatch-row-compact" id="color-swatches">
-            <button class="color-swatch active" data-color="#111827" style="--swatch:#111827" aria-label="Ink Black"></button>
-            <button class="color-swatch" data-color="#ffffff" style="--swatch:#ffffff" aria-label="Chalk White"></button>
-            <button class="color-swatch" data-color="#ef4444" style="--swatch:#ef4444" aria-label="Crimson Red"></button>
-            <button class="color-swatch" data-color="#2563eb" style="--swatch:#2563eb" aria-label="Royal Blue"></button>
-            <button class="color-swatch" data-color="#10b981" style="--swatch:#10b981" aria-label="Emerald Green"></button>
-            <button class="color-swatch" data-color="#f59e0b" style="--swatch:#f59e0b" aria-label="Amber Gold"></button>
-            <button class="color-swatch" data-color="#8b5cf6" style="--swatch:#8b5cf6" aria-label="Violet"></button>
-            <label class="color-picker-wrap" title="Custom Color">
-              <input type="color" id="custom-color-input" value="#06b6d4" />
-              <span class="color-wheel-icon" aria-hidden="true">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Aligned Size & StreamLine Sliders -->
-        <div class="panel-group slider-stack">
+        <!-- Streamlined Size & Smoothness / Contextual Controls -->
+        <div class="slider-stack">
           <div class="aligned-slider-row">
             <span class="slider-lbl-with-dot">
               <span class="size-preview-wrap">
@@ -375,43 +330,85 @@
               </span>
               <span data-i18n="strokeSize">Size</span>
             </span>
-            <input id="stroke-size-slider" type="range" min="1" max="36" value="4" step="1" aria-label="Stroke Size" />
-            <span id="stroke-size-val" class="slider-val">4</span>
+            <input id="stroke-size-slider" type="range" min="2" max="32" value="4" step="1" aria-label="Stroke Size" />
+            <span id="stroke-size-val" class="slider-val">4px</span>
           </div>
-          <div class="aligned-slider-row">
-            <span class="slider-lbl" data-i18n="streamline" title="Stroke stabilization to reduce hand jitter">StreamLine</span>
-            <input id="streamline-slider" type="range" min="0" max="100" value="35" step="5" aria-label="StreamLine Smoothness" />
-            <span id="streamline-val" class="slider-val">35%</span>
+
+          <div class="inline-control-strip">
+            <div class="aligned-slider-row compact-slider">
+              <span class="slider-lbl" data-i18n="streamline" title="StreamLine stroke stabilization to reduce hand jitter">Smooth</span>
+              <input id="streamline-slider" type="range" min="0" max="100" value="35" step="5" aria-label="StreamLine Smoothness" />
+              <span id="streamline-val" class="slider-val">35%</span>
+            </div>
+
+            <!-- Contextual: Fountain Nib Angle (30-45°) -->
+            <div id="nib-angle-row" class="context-control-row">
+              <div class="aligned-slider-row compact-slider">
+                <span class="slider-lbl" data-i18n="nibAngle">Nib Angle</span>
+                <input id="nib-angle-slider" type="range" min="30" max="45" value="38" step="1" aria-label="Fountain Nib Angle" />
+                <span id="nib-angle-val" class="slider-val">38°</span>
+              </div>
+            </div>
+
+            <!-- Contextual: Dashed vs Dotted -->
+            <div id="dash-style-row" class="context-control-row hidden">
+              <div class="context-inline-row">
+                <span class="slider-lbl" data-i18n="lineStyle">Pattern</span>
+                <div class="mini-seg">
+                  <button type="button" class="mini-seg-btn active" data-dash="dashed" data-i18n="styleDashed">Dashed</button>
+                  <button type="button" class="mini-seg-btn" data-dash="dotted" data-i18n="styleDotted">Dotted</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contextual: Vanish Fade Time (2s / 5s / 10s + slider) -->
+            <div id="vanish-fade-row" class="context-control-row hidden">
+              <div class="context-inline-row">
+                <span class="slider-lbl" data-i18n="vanishFade">Fade</span>
+                <div class="quick-pill-row">
+                  <button type="button" class="mini-seg-btn" data-vanish-sec="2">2s</button>
+                  <button type="button" class="mini-seg-btn" data-vanish-sec="5">5s</button>
+                  <button type="button" class="mini-seg-btn" data-vanish-sec="10">10s</button>
+                </div>
+                <span id="vanish-fade-val" class="slider-val">4s</span>
+              </div>
+              <input id="vanish-fade-slider" class="vanish-inline-range" type="range" min="1" max="15" value="4" step="1" aria-label="Vanishing Fade Seconds" />
+            </div>
           </div>
         </div>
 
+        <!-- Clean Minimal Bottom Action Bar -->
         <div class="panel-footer-actions">
-          <button id="btn-undo" class="mini-action-btn" title="Undo (Ctrl+Z, 2-Finger Tap)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button id="btn-undo" class="mini-action-btn" title="Undo (Ctrl+Z, 2-Finger Tap)" aria-label="Undo">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9 14L4 9l5-5" />
               <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
             </svg>
-            <span data-i18n="undo">Undo</span>
           </button>
-          <button id="btn-redo" class="mini-action-btn" title="Redo (Ctrl+Y, 3-Finger Tap)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button id="btn-redo" class="mini-action-btn" title="Redo (Ctrl+Y, 3-Finger Tap)" aria-label="Redo">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M15 14l5-5-5-5" />
               <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13" />
             </svg>
-            <span data-i18n="redo">Redo</span>
           </button>
-          <button id="btn-reset-zoom" class="mini-action-btn zoom-readout" title="Reset Zoom (Ctrl+0)">100%</button>
+          <button id="btn-reset-zoom" class="mini-action-btn zoom-readout" title="Fit / Reset Zoom (Ctrl+0)" aria-label="Fit or Reset Zoom">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
+            <span id="zoom-readout-text" class="zoom-readout-text">100%</span>
+          </button>
+          <button id="btn-touch-lock" class="mini-action-btn touch-lock-toggle" aria-pressed="false" title="Touch Draw: ON (Tap for Stylus-Only)" aria-label="Toggle Touch Lock">
+            <svg id="touch-lock-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+              <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+              <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+            </svg>
+          </button>
         </div>
-
-        <button id="btn-touch-lock" class="mini-action-btn touch-lock-toggle" aria-pressed="false" title="Lock finger touch drawing (Stylus-Only Mode)">
-          <svg id="touch-lock-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
-            <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
-            <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
-            <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
-          </svg>
-          <span data-i18n="touchLockOff">Touch Draw: ON</span>
-        </button>
       </div>
 
       <!-- TAB 2: KITS (Nested Geometry & Chemistry) -->
@@ -425,7 +422,7 @@
         <div class="kit-subpane" data-kit-pane="geometry">
           <div class="kit-grid-2">
             <button class="kit-card-btn" data-geo="ruler">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="8" width="20" height="8" rx="1.5" />
                 <line x1="6" y1="8" x2="6" y2="12" />
                 <line x1="10" y1="8" x2="10" y2="11" />
@@ -435,14 +432,14 @@
               <span data-i18n="geoRuler">Ruler</span>
             </button>
             <button class="kit-card-btn" data-geo="protractor">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 17a9 9 0 0 1 18 0Z" />
                 <line x1="12" y1="17" x2="17" y2="11" />
               </svg>
               <span data-i18n="geoProtractor">Protractor</span>
             </button>
             <button class="kit-card-btn" data-geo="compass">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="5" r="2" />
                 <path d="M10.5 7L5 20" />
                 <path d="M13.5 7L19 20" />
@@ -451,13 +448,13 @@
               <span data-i18n="geoCompass">Compass</span>
             </button>
             <button class="kit-card-btn" id="btn-place-axes">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="3" x2="12" y2="21" />
                 <line x1="3" y1="12" x2="21" y2="12" />
                 <polyline points="9 6 12 3 15 6" />
                 <polyline points="18 9 21 12 18 15" />
               </svg>
-              <span data-i18n="geoAxes">X/Y Axes</span>
+              <span data-i18n="geoAxes">Axes</span>
             </button>
           </div>
           <p class="kit-hint" data-i18n="geoHint">Pen snaps to Ruler edge when drawing nearby.</p>
@@ -478,89 +475,87 @@
           <div class="chem-conditions-row" id="chem-conditions-row"></div>
 
           <button id="btn-open-periodic" class="periodic-launch-btn">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="16" rx="2" />
               <line x1="9" y1="4" x2="9" y2="20" />
               <line x1="15" y1="4" x2="15" y2="20" />
               <line x1="3" y1="12" x2="21" y2="12" />
             </svg>
-            <span data-i18n="openPeriodic">Periodic Table (Offline)</span>
+            <span data-i18n="openPeriodic">Periodic Table</span>
           </button>
 
           <div class="chem-subtabs chem-subtabs-4">
             <button class="chem-subtab-btn active" data-chem="organic" data-i18n="chemRings">Rings</button>
             <button class="chem-subtab-btn" data-chem="arrows" data-i18n="chemArrows">Arrows</button>
+            <button class="chem-subtab-btn" data-chem="lab" data-i18n="chemLab">Apparatus</button>
             <button class="chem-subtab-btn" data-chem="vsepr" data-i18n="chemVsepr">VSEPR</button>
-            <button class="chem-subtab-btn" data-chem="lab" data-i18n="chemLab">Lab</button>
           </div>
 
           <div id="chem-stencil-grid" class="chem-stencil-grid"></div>
         </div>
       </div>
 
-      <!-- TAB 3: SMART (Explicit ON/OFF Toggles + Offline Language Packs) -->
+      <!-- TAB 3: SMART (Clean Single-Line Toggles + Compact Language Packs) -->
       <div class="orb-tab-pane hidden" data-pane="smart">
-        <div class="smart-toggle-card">
-          <div class="smart-toggle-row">
-            <div class="smart-toggle-text">
-              <span class="smart-title" data-i18n="smartQuickShape">QuickShape (Hold-to-Snap)</span>
-              <span class="smart-desc" data-i18n="smartQuickShapeDesc">Hold 450ms to snap line, arrow, circle, rect, triangle.</span>
+        <div class="smart-list">
+          <div class="smart-item">
+            <div class="smart-toggle-row">
+              <div class="smart-label-group">
+                <span class="smart-title" data-i18n="smartQuickShape">QuickShape</span>
+                <button id="btn-quickshape-help" class="smart-help-btn" type="button" title="Hold 450ms to snap line, arrow, circle, rect, triangle." aria-label="QuickShape details">?</button>
+              </div>
+              <button id="toggle-quickshape" class="switch-btn active" role="switch" aria-checked="true" type="button">
+                <span class="switch-knob"></span>
+              </button>
             </div>
-            <button id="toggle-quickshape" class="switch-btn active" role="switch" aria-checked="true" type="button">
-              <span class="switch-knob"></span>
-            </button>
+            <p id="quickshape-hint" class="smart-help-hint hidden" data-i18n="smartQuickShapeDesc">Hold 450ms to snap line, arrow, circle, rect, triangle.</p>
+          </div>
+
+          <div class="smart-item">
+            <div class="smart-toggle-row">
+              <span class="smart-title" data-i18n="smartVanishSlides">Auto-Vanish on Slides</span>
+              <button id="toggle-vanish-slides" class="switch-btn" role="switch" aria-checked="false" type="button">
+                <span class="switch-knob"></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="smart-item">
+            <div class="smart-toggle-row">
+              <span class="smart-title" data-i18n="smartInkRec">Smart Ink</span>
+              <button id="toggle-smart-ink" class="switch-btn" role="switch" aria-checked="false" type="button">
+                <span class="switch-knob"></span>
+              </button>
+            </div>
+            <div id="smart-ink-status" class="smart-sub-row hidden">
+              <span data-i18n="smartInkReady">Local hook active:</span>
+              <strong id="smart-ink-last">—</strong>
+            </div>
+          </div>
+
+          <div class="smart-item">
+            <div class="smart-toggle-row">
+              <span class="smart-title" data-i18n="smartStickyGrid">Sticky Notes &amp; Grid</span>
+              <button id="toggle-sticky-grid" class="switch-btn" role="switch" aria-checked="false" type="button">
+                <span class="switch-knob"></span>
+              </button>
+            </div>
+            <div id="sticky-tray" class="sticky-tray hidden">
+              <span class="sticky-tray-lbl" data-i18n="addStickyNote">Drop Note:</span>
+              <div class="sticky-colors">
+                <button type="button" class="sticky-color-btn" data-note-color="#fef08a" style="background:#fef08a" title="Yellow Note"></button>
+                <button type="button" class="sticky-color-btn" data-note-color="#bbf7d0" style="background:#bbf7d0" title="Mint Note"></button>
+                <button type="button" class="sticky-color-btn" data-note-color="#bae6fd" style="background:#bae6fd" title="Sky Note"></button>
+                <button type="button" class="sticky-color-btn" data-note-color="#fecdd3" style="background:#fecdd3" title="Rose Note"></button>
+                <button type="button" class="sticky-color-btn" data-note-color="#e9d5ff" style="background:#e9d5ff" title="Violet Note"></button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="smart-toggle-card">
-          <div class="smart-toggle-row">
-            <div class="smart-toggle-text">
-              <span class="smart-title" data-i18n="smartVanishSlides">Default Vanishing Ink on Slides</span>
-              <span class="smart-desc" data-i18n="smartVanishSlidesDesc">Auto-use Vanishing Pen when viewing PDF / PPT slides.</span>
-            </div>
-            <button id="toggle-vanish-slides" class="switch-btn" role="switch" aria-checked="false" type="button">
-              <span class="switch-knob"></span>
-            </button>
-          </div>
-        </div>
-
-        <div class="smart-toggle-card">
-          <div class="smart-toggle-row">
-            <div class="smart-toggle-text">
-              <span class="smart-title" data-i18n="smartInkRec">Smart Ink Recognition</span>
-              <span class="smart-desc" data-i18n="smartInkRecDesc">Offline handwriting-to-text (Lasso → To Text).</span>
-            </div>
-            <button id="toggle-smart-ink" class="switch-btn" role="switch" aria-checked="false" type="button">
-              <span class="switch-knob"></span>
-            </button>
-          </div>
-          <div id="smart-ink-status" class="smart-sub-row hidden">
-            <span data-i18n="smartInkReady">Local hook active:</span>
-            <strong id="smart-ink-last">—</strong>
-          </div>
+        <div class="smart-packs-section">
+          <div class="smart-section-label" data-i18n="offlinePacksLabel">Offline Language Packs</div>
           <div id="ocr-packs-list" class="ocr-packs-list"></div>
-        </div>
-
-        <div class="smart-toggle-card">
-          <div class="smart-toggle-row">
-            <div class="smart-toggle-text">
-              <span class="smart-title" data-i18n="smartStickyGrid">Sticky Note &amp; Grid Snap</span>
-              <span class="smart-desc" data-i18n="smartStickyGridDesc">Place color notes &amp; snap stamps to 24px grid.</span>
-            </div>
-            <button id="toggle-sticky-grid" class="switch-btn" role="switch" aria-checked="false" type="button">
-              <span class="switch-knob"></span>
-            </button>
-          </div>
-          <div id="sticky-tray" class="sticky-tray hidden">
-            <span class="sticky-tray-lbl" data-i18n="addStickyNote">Drop Note:</span>
-            <div class="sticky-colors">
-              <button type="button" class="sticky-color-btn" data-note-color="#fef08a" style="background:#fef08a" title="Yellow Note"></button>
-              <button type="button" class="sticky-color-btn" data-note-color="#bbf7d0" style="background:#bbf7d0" title="Mint Note"></button>
-              <button type="button" class="sticky-color-btn" data-note-color="#bae6fd" style="background:#bae6fd" title="Sky Note"></button>
-              <button type="button" class="sticky-color-btn" data-note-color="#fecdd3" style="background:#fecdd3" title="Rose Note"></button>
-              <button type="button" class="sticky-color-btn" data-note-color="#e9d5ff" style="background:#e9d5ff" title="Violet Note"></button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
