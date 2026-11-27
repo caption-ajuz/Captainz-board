@@ -124,13 +124,21 @@ input:focus-visible,
 }
 
 #bg-canvas { z-index: 1; }
-#ink-canvas { z-index: 2; }
-#active-canvas { z-index: 3; }
+#highlighter-canvas { z-index: 2; mix-blend-mode: multiply; }
+#ink-canvas { z-index: 3; }
+#active-canvas { z-index: 4; }
 
 .stamp-layer {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.geometry-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
   pointer-events: none;
 }
 
@@ -1188,6 +1196,815 @@ input:focus-visible,
   text-align: center;
   box-shadow: var(--glass-shadow);
   pointer-events: none;
+}
+
+/* ==================== Nested Floating Orb Tabs, Kits & Smart Controls ==================== */
+.orb-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  border: 1.5px solid var(--glass-border);
+}
+
+.orb-tab-btn {
+  min-height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.orb-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.orb-tab-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+}
+
+.orb-tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.brush-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.tool-row-5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+
+.tool-btn.compact {
+  min-height: 46px;
+  padding: 6px 3px;
+  gap: 3px;
+}
+
+.tool-btn.compact .tool-lbl {
+  font-size: 10px;
+}
+
+.context-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.context-lbl,
+.streamline-lbl {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.context-control-row input[type="range"],
+#streamline-slider {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.mini-seg {
+  margin-inline-start: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.mini-seg-btn {
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mini-seg-btn.active {
+  background: var(--surface-active);
+  border-color: var(--accent);
+}
+
+.slider-stack {
+  gap: 4px;
+}
+
+/* Kits Tab */
+.kit-subtabs,
+.chem-subtabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.chem-subtabs {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.kit-subtab-btn,
+.chem-subtab-btn {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.chem-subtab-btn {
+  min-height: 32px;
+  font-size: 11px;
+}
+
+.kit-subtab-btn.active,
+.chem-subtab-btn.active {
+  background: var(--surface-active);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.kit-subpane {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.kit-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.kit-card-btn {
+  min-height: 68px;
+  padding: 10px 8px;
+  border-radius: 11px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.kit-card-btn:hover { background: var(--surface-hover); }
+.kit-card-btn.active {
+  background: var(--surface-active);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.kit-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.periodic-launch-btn {
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--accent);
+  background: var(--surface-active);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.periodic-launch-btn:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.chem-stencil-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.chem-stencil-btn {
+  min-height: 68px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.chem-stencil-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.chem-preview {
+  width: 36px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+}
+
+.chem-preview svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.chem-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Smart Tab Toggles */
+.smart-toggle-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.smart-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.smart-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.smart-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.smart-desc {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.switch-btn {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--surface-hover);
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform var(--transition-fast);
+}
+
+.switch-btn.active {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.switch-btn.active .switch-knob {
+  transform: translateX(20px);
+}
+
+.smart-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.sticky-tray {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.sticky-tray-lbl {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sticky-colors {
+  display: flex;
+  gap: 6px;
+}
+
+.sticky-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(15, 23, 42, 0.28);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+.sticky-color-btn:hover { transform: scale(1.12); }
+
+/* ==================== Stamps Rotation & Sticky Notes ==================== */
+.snip-stamp.vector-stamp {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: none;
+}
+
+.snip-stamp .stamp-rotate {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--glass-bg-strong);
+  color: var(--text-primary);
+  border: 1.5px solid var(--accent);
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sticky-note {
+  position: absolute;
+  pointer-events: auto;
+  border-radius: 10px;
+  background: var(--note-bg, #fef08a);
+  color: #1e293b;
+  border: 1.5px solid rgba(15, 23, 42, 0.16);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  touch-action: none;
+}
+
+.sticky-note-header {
+  height: 28px;
+  padding: 0 8px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 9px 9px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: move;
+}
+
+.sticky-note-grip {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.65;
+}
+
+.sticky-note-del {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.sticky-note-body {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sticky-resize {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #ffffff;
+  cursor: nwse-resize;
+}
+
+/* ==================== Interactive Geometry Kit Tools ==================== */
+.geo-tool {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  color: var(--text-primary);
+}
+
+.geo-ruler {
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.24);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(59, 130, 246, 0.55);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+  cursor: move;
+  color: #0f172a;
+}
+
+[data-theme="dark"] .geo-ruler {
+  background: rgba(30, 41, 59, 0.68);
+  color: #f8fafc;
+}
+
+.geo-ruler-svg {
+  display: block;
+  pointer-events: none;
+}
+
+.geo-hud-pill {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.geo-close-btn,
+.geo-stamp-circle-btn {
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+.geo-stamp-circle-btn {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.geo-rotate-knob {
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+
+.geo-protractor {
+  cursor: move;
+}
+
+.geo-protractor-arc {
+  fill: rgba(59, 130, 246, 0.14);
+  stroke: rgba(59, 130, 246, 0.65);
+  stroke-width: 1.8;
+}
+
+.geo-protractor-hud {
+  top: auto;
+  bottom: 6px;
+}
+
+.geo-arm-knob {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
+  cursor: grab;
+}
+
+.geo-compass {
+  width: 0;
+  height: 0;
+}
+
+.geo-compass-svg {
+  position: absolute;
+  left: -260px;
+  top: -260px;
+  pointer-events: none;
+}
+
+.geo-compass-pivot {
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--accent);
+  display: grid;
+  place-items: center;
+  cursor: move;
+}
+
+.geo-compass-needle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.geo-compass-hud {
+  top: -36px;
+  left: 0;
+}
+
+.geo-compass-tip {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  cursor: crosshair;
+}
+
+/* ==================== Offline Periodic Table Modal ==================== */
+.periodic-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: var(--backdrop-scrim);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.periodic-modal {
+  width: min(1080px, 96vw);
+  max-height: 92vh;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  border: 1.5px solid var(--glass-border);
+  box-shadow: var(--drag-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.periodic-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.periodic-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  margin-inline-end: auto;
+}
+
+.periodic-search {
+  width: 260px;
+  max-width: 45vw;
+  min-height: 38px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.periodic-grid {
+  display: grid;
+  grid-template-columns: repeat(18, minmax(42px, 1fr));
+  grid-auto-rows: 48px;
+  gap: 4px;
+  overflow: auto;
+  padding: 4px 2px;
+}
+
+.pt-cell {
+  border-radius: 7px;
+  border: 1.5px solid color-mix(in srgb, var(--pt-cat, #3b82f6) 50%, transparent);
+  background: color-mix(in srgb, var(--pt-cat, #3b82f6) 14%, var(--glass-bg));
+  color: var(--text-primary);
+  padding: 2px 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.pt-cell:hover {
+  transform: scale(1.06);
+  border-color: var(--pt-cat, #3b82f6);
+}
+
+.pt-cell.active {
+  outline: 2px solid var(--pt-cat, #3b82f6);
+  background: color-mix(in srgb, var(--pt-cat, #3b82f6) 30%, var(--glass-bg));
+}
+
+.pt-cell.dimmed {
+  opacity: 0.22;
+}
+
+.pt-num {
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.78;
+  line-height: 1;
+}
+
+.pt-sym {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.pt-name {
+  font-size: 8px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+
+.periodic-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.periodic-detail {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pt-detail-badge {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  border: 2px solid var(--pt-cat, #3b82f6);
+  background: color-mix(in srgb, var(--pt-cat, #3b82f6) 18%, var(--glass-bg));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pt-detail-num {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.pt-detail-sym {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.pt-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pt-detail-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pt-detail-cat {
+  font-size: 12px;
+  font-weight: 700;
+  margin-inline-start: 6px;
+}
+
+.pt-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.pt-detail-stats code {
+  font-family: Consolas, monospace;
+  color: var(--text-primary);
 }
 
 @media (max-width: 640px) {

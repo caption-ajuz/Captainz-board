@@ -122,6 +122,8 @@ export class GestureManager {
       x: pos.x,
       y: pos.y,
       pressure: e.pressure ?? 0.5,
+      tiltX: e.tiltX || 0,
+      tiltY: e.tiltY || 0,
       pointerType: e.pointerType,
       t: e.timeStamp || performance.now(),
       palmRadius: Math.max(e.width || 44, e.height || 44) / this.scale,
@@ -276,6 +278,7 @@ export class GestureManager {
         this._tapCandidate = null;
         const elapsed = performance.now() - candidate.startTime;
         if (!candidate.cancelled && elapsed <= TAP_MAX_DURATION_MS && candidate.maxPointers >= 2) {
+          clearTimeout(this._zoomEndTimer);
           // Restore any sub-threshold pinch/pan jitter that occurred during tap
           if (candidate.preTransform) {
             this.scale = candidate.preTransform.scale;

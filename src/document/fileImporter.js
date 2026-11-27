@@ -115,3 +115,50 @@ function blobToDataUrl(blob) {
     reader.readAsDataURL(blob);
   });
 }
+
+/**
+ * Opens a local file path directly (used by Windows "Open with Captnz Board" & CLI launches).
+ */
+export async function openFileFromPath(filePath) {
+  if (!isTauriRuntime() || !filePath) return null;
+  const { invoke } = await import('@tauri-apps/api/core');
+  const name = filePath.split(/[\\/]/).pop() || filePath;
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+
+  if (ext === 'cboard') {
+    const bytes = await invoke('read_file_bytes', { path: filePath });
+    return { kind: 'cboard', bytes: new Uint8Array(bytes), name };
+  }
+
+  if (ext === 'pdf') {
+    const bytes = await invoke('read_file_bytes', { path: filePath });
+    const rawBytes = new Uint8Array(bytes);
+    const pdfDoc = await loadPdfFromBytes(rawBytes);
+    return { kind: 'pdf', pdfDoc, rawBytes, name };
+  }
+
+  if (ext === 'pptx' || ext === 'ppt') {
+    try {
+      const pdfBytes = await invoke('convert_ppt_to_pdf', { inputPath: filePath });
+      const rawBytes = new Uint8Array(pdfBytes);
+      const pdfDoc = await loadPdfFromBytes(rawBytes);
+      return { kind: 'ppt', mode: 'pdf', pdfDoc, rawBytes, name };
+    } catch {
+      if (ext === 'pptx') {
+        const slides = await invoke('extract_pptx_fallback', { inputPath: filePath });
+        return { kind: 'ppt', mode: 'fallback', slides, name };
+      }
+      throw new Error('Install LibreOffice or Microsoft PowerPoint to convert legacy .ppt files.');
+    }
+  }
+
+  if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+    const bytes = await invoke('read_file_bytes', { path: filePath });
+    const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const blob = new Blob([new Uint8Array(bytes)], { type: mime });
+    const dataUrl = await blobToDataUrl(blob);
+    return { kind: 'image', dataUrl, name };
+  }
+
+  return null;
+}

@@ -1,7 +1,8 @@
 /**
  * Captnz Board — Main Application Bootstrap
- * Coordinates 4K DPR canvas scaling, InkEngine, GestureManager, LassoSnip,
- * PageManager, FileImporter, PDFExporter, RecoveryStore, and Floating UI.
+ * Coordinates 4K DPR canvas scaling, Procreate-style InkEngine, GestureManager,
+ * Geometry & Chemistry Kits, Periodic Table Modal, Smart Toggles, .cboard Projects,
+ * Windows "Open with" integration, PageManager, RecoveryStore, and Floating UI.
  */
 
 import './styles/main.css';
@@ -9,20 +10,34 @@ import { applyLanguage, t } from './i18n/translations.js';
 import { getOptimalDpr, InkEngine } from './engine/inkEngine.js';
 import { GestureManager } from './engine/gestureManager.js';
 import { LassoSnipTool } from './engine/lassoSnip.js';
+import { SmartInkRecognizer } from './engine/smartInk.js';
 import { PageManager } from './document/pageManager.js';
-import { pickAndImportImage, pickAndOpenPdf, pickAndOpenPpt, isTauriRuntime } from './document/fileImporter.js';
+import {
+  isTauriRuntime,
+  openFileFromPath,
+  pickAndImportImage,
+  pickAndOpenPdf,
+  pickAndOpenPpt,
+} from './document/fileImporter.js';
+import { loadCboardFromBytes, pickAndOpenCboard, saveCboardProject } from './document/cboardFormat.js';
 import { exportSessionToPdf } from './document/pdfExporter.js';
 import { RecoveryStore } from './document/recoveryStore.js';
+import { buildCoordinateAxesSvg } from './kits/chemistryStencils.js';
+import { GeometryKitManager } from './kits/geometryTools.js';
+import { createElementBadgeSvg } from './data/periodicTable.js';
 import { SlideDrawer } from './ui/drawer.js';
 import { FloatingOrb } from './ui/floatingOrb.js';
 import { NavControls } from './ui/navControls.js';
+import { PeriodicTableModal } from './ui/periodicModal.js';
 
 const viewport = document.getElementById('board-viewport');
 const transformLayer = document.getElementById('board-transform-layer');
 const bgCanvas = document.getElementById('bg-canvas');
+const highlighterCanvas = document.getElementById('highlighter-canvas');
 const inkCanvas = document.getElementById('ink-canvas');
 const activeCanvas = document.getElementById('active-canvas');
 const stampLayer = document.getElementById('stamp-layer');
+const geometryLayer = document.getElementById('geometry-layer');
 const toastEl = document.getElementById('toast');
 
 let toastTimer = null;
@@ -38,7 +53,7 @@ function resizeCanvases(zoomScale = 1) {
   const w = window.innerWidth;
   const h = window.innerHeight;
   const dpr = getOptimalDpr(w, h, zoomScale);
-  for (const c of [bgCanvas, inkCanvas, activeCanvas]) {
+  for (const c of [bgCanvas, highlighterCanvas, inkCanvas, activeCanvas]) {
     c.width = Math.round(w * dpr);
     c.height = Math.round(h * dpr);
     c.dataset.dpr = String(dpr);
@@ -56,7 +71,7 @@ function resizeInkCanvasesForZoom(zoomScale = 1) {
   const nextDpr = getOptimalDpr(w, h, zoomScale);
   const prevDpr = Number(inkCanvas.dataset?.dpr) || 1;
   if (Math.abs(nextDpr - prevDpr) < 0.08) return false;
-  for (const c of [inkCanvas, activeCanvas]) {
+  for (const c of [highlighterCanvas, inkCanvas, activeCanvas]) {
     c.width = Math.round(w * nextDpr);
     c.height = Math.round(h * nextDpr);
     c.dataset.dpr = String(nextDpr);
@@ -71,13 +86,23 @@ resizeCanvases();
 
 const recoveryStore = new RecoveryStore();
 let pageManager = null;
+let orb = null;
+
+// Offline Smart Ink local recognition hook
+const smartInk = new SmartInkRecognizer({
+  onRecognized: (res) => {
+    orb?.setSmartInkLast(`${res.label} (${Math.round(res.confidence * 100)}%)`);
+  },
+});
 
 // 1. Ink Engine
 const inkEngine = new InkEngine({
   inkCanvas,
+  highlighterCanvas,
   activeCanvas,
   onStrokeCommitted: (stroke) => {
     pageManager.addStroke(stroke);
+    smartInk.analyzeStroke(stroke);
     recoveryStore.scheduleSave(pageManager);
   },
   onStrokeErased: (pt, radius) => {
@@ -92,9 +117,10 @@ const inkEngine = new InkEngine({
   },
 });
 
-// 2. Lasso Snip Tool
+// 2. Lasso Snip & Interactive Stamp/Sticky-Note Layer
 const lassoTool = new LassoSnipTool({
   bgCanvas,
+  highlighterCanvas,
   inkCanvas,
   activeCanvas,
   stampLayer,
@@ -106,7 +132,7 @@ const lassoTool = new LassoSnipTool({
     recoveryStore.scheduleSave(pageManager);
   },
   onSendToNewPage: (snip) => {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     const newPage = pageManager.insertBlankAfterCurrent();
     snip.x = Math.max(40, (window.innerWidth - snip.w) / 2);
     snip.y = Math.max(40, (window.innerHeight - snip.h) / 2);
@@ -142,6 +168,7 @@ function refreshStamps() {
   const page = pageManager.getCurrentPage();
   lassoTool.renderStamps(page.stamps || [], {
     getScale: () => gestureManager.getTransform().scale,
+    getGridSnap: () => Boolean(orb?.smartState?.stickyGrid),
     onChange: () => recoveryStore.scheduleSave(pageManager),
     onDelete: (id) => {
       page.stamps = page.stamps.filter((s) => s.id !== id);
@@ -151,7 +178,23 @@ function refreshStamps() {
   });
 }
 
-// 4. Gesture Manager (Single-touch draw, 2-finger pinch/pan, Palm Eraser/Rejection)
+function placeStampCentered(stamp) {
+  const page = pageManager.getCurrentPage();
+  if (!page) return;
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  const offset = ((page.stamps?.length || 0) % 5) * 16;
+  page.stamps = page.stamps || [];
+  page.stamps.push({
+    ...stamp,
+    x: Math.round(cx - stamp.w / 2 + offset),
+    y: Math.round(cy - stamp.h / 2 + offset),
+  });
+  refreshStamps();
+  recoveryStore.scheduleSave(pageManager);
+}
+
+// 4. Gesture Manager (Single-touch draw, 2-finger pinch/pan, 2/3-finger tap Undo/Redo, Palm Eraser)
 let currentLayout = null;
 let currentViewMode = 'fit-page';
 let lastRenderedZoom = 1;
@@ -245,17 +288,49 @@ const gestureManager = new GestureManager({
   },
   onTwoFingerTap: () => performUndo(true),
   onThreeFingerTap: () => performRedo(true),
-  onTransformChange: ({ scale }) => orb?.setZoom(scale),
 });
 
-// 5. Floating Circle Toolbox (Orb)
-const orb = new FloatingOrb({
+// 5. Geometry Kit & Offline Periodic Table Modal
+const geometryKit = new GeometryKitManager({
+  layerEl: geometryLayer,
+  inkEngine,
+  getScale: () => gestureManager.getTransform().scale,
+  getActiveStyle: () => ({
+    tool: inkEngine.tool,
+    dashStyle: inkEngine.dashStyle,
+    color: inkEngine.color,
+    size: inkEngine.size,
+  }),
+  onToolToggled: (toolName, active) => {
+    orb?.setGeometryToolState(toolName, active);
+  },
+});
+
+const periodicModal = new PeriodicTableModal({
+  onPlaceElement: (el) => {
+    placeStampCentered({
+      id: `elem_${el.symbol}_${Date.now()}`,
+      kind: 'svg',
+      label: `${el.number} ${el.symbol}`,
+      svgMarkup: createElementBadgeSvg(el),
+      w: 140,
+      h: 156,
+      rot: 0,
+    });
+  },
+});
+
+// 6. Nested Floating Circle Toolbox (Orb)
+orb = new FloatingOrb({
   onToolChange: (tool) => {
     lassoTool.clearSelection();
     inkEngine.setTool(tool);
   },
   onColorChange: (color) => inkEngine.setColor(color),
   onSizeChange: (size) => inkEngine.setSize(size),
+  onStreamlineChange: (pct) => inkEngine.setStreamline(pct),
+  onNibAngleChange: (deg) => inkEngine.setNibAngle(deg),
+  onDashStyleChange: (style) => inkEngine.setDashStyle(style),
   onUndo: () => performUndo(false),
   onRedo: () => performRedo(false),
   onResetZoom: () => toggleZoomView(),
@@ -263,35 +338,79 @@ const orb = new FloatingOrb({
     gestureManager.setTouchLocked(locked);
     showToast(t(locked ? 'toastTouchLocked' : 'toastTouchUnlocked'), 1500);
   },
+  onGeometryToggle: (toolName) => geometryKit.toggle(toolName),
+  onPlaceAxes: () => {
+    const strokeColor = inkEngine.isDarkBackground ? '#f8fafc' : '#111827';
+    placeStampCentered({
+      id: `axes_${Date.now()}`,
+      kind: 'svg',
+      label: 'Coordinate Axes',
+      svgMarkup: buildCoordinateAxesSvg(strokeColor),
+      w: 320,
+      h: 320,
+      rot: 0,
+    });
+  },
+  onPlaceChemStencil: (stencil) => {
+    const strokeColor =
+      inkEngine.isDarkBackground && inkEngine.color.toLowerCase() === '#111827'
+        ? '#f8fafc'
+        : inkEngine.color;
+    placeStampCentered({
+      id: `chem_${stencil.id}_${Date.now()}`,
+      kind: 'svg',
+      label: stencil.label,
+      svgMarkup: stencil.build(strokeColor),
+      w: stencil.w,
+      h: stencil.h,
+      rot: 0,
+    });
+  },
+  onOpenPeriodicTable: () => periodicModal.open(),
+  onSmartToggleChange: (state) => {
+    inkEngine.setQuickShapeEnabled(state.quickShape);
+    smartInk.setEnabled(state.smartInk);
+  },
+  onAddStickyNote: (color) => {
+    placeStampCentered({
+      id: `note_${Date.now()}`,
+      kind: 'sticky',
+      color,
+      text: '',
+      w: 220,
+      h: 180,
+      rot: 0,
+    });
+  },
 });
 
-// 6. Navigation Controls (< > +)
+// 7. Navigation Controls (< > +)
 const navControls = new NavControls({
   onPrev: () => {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     pageManager.prevPage();
   },
   onNext: () => {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     pageManager.nextPage();
   },
   onAddBlank: () => {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     pageManager.insertBlankAfterCurrent();
     showToast(t('toastBlankInserted'));
     recoveryStore.scheduleSave(pageManager);
   },
 });
 
-// 7. Slide Drawer
+// 8. Slide Drawer
 const drawer = new SlideDrawer({
   onBeforeOpen: () => {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     drawer.renderThumbnails(pageManager.pages, pageManager.currentIndex);
   },
   onRequestThumbnail: (page) => pageManager.renderThumbnailForPage(page),
   onSelectPage: (idx) => {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     pageManager.goToPage(idx);
   },
   onDeletePage: (idx) => {
@@ -303,7 +422,7 @@ const drawer = new SlideDrawer({
     pageManager.setBackground(bg);
     const isDark = bg === 'blackboard';
     inkEngine.setDarkBackground(isDark);
-    // Switch default ink between chalk white and dark ink when switching background polarity
+    lassoTool.setDarkBackground(isDark);
     if (isDark && orb.currentColor.toLowerCase() === '#111827') {
       orb.setColor('#ffffff');
       inkEngine.setColor('#ffffff');
@@ -325,6 +444,24 @@ const drawer = new SlideDrawer({
   onNewBoard: () => {
     pageManager.createBlankSession();
     recoveryStore.clear();
+  },
+  onOpenCboard: async () => {
+    try {
+      const name = await pickAndOpenCboard(pageManager);
+      if (!name) return;
+      showToast(`${t('toastProjectLoaded')}: ${name}`);
+      recoveryStore.scheduleSave(pageManager);
+    } catch (err) {
+      showToast(err?.message || 'Could not open .cboard project', 3500);
+    }
+  },
+  onSaveCboard: async () => {
+    try {
+      const ok = await saveCboardProject(pageManager);
+      if (ok) showToast(t('toastProjectSaved'));
+    } catch (err) {
+      showToast(err?.message || 'Could not save .cboard project', 3500);
+    }
   },
   onOpenPdf: async () => {
     try {
@@ -357,7 +494,7 @@ const drawer = new SlideDrawer({
     try {
       const dataUrl = await pickAndImportImage();
       if (!dataUrl) return;
-      pageManager.captureCurrentThumbnail(inkCanvas);
+      pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
       pageManager.addImagePage(dataUrl);
       showToast(t('toastImageAdded'));
       recoveryStore.scheduleSave(pageManager);
@@ -376,14 +513,16 @@ const drawer = new SlideDrawer({
   },
 });
 
-// 8. Page Manager (initialized after UI controllers referenced in its callbacks)
+// 9. Page Manager
 pageManager = new PageManager({
   bgCanvas,
   onPageChanged: async (page, idx) => {
     lassoTool.clearSelection();
     inkEngine.clearTransient();
     drawer?.setActiveBackground(page.background || 'white');
-    inkEngine.setDarkBackground(page.background === 'blackboard');
+    const isDark = page.background === 'blackboard';
+    inkEngine.setDarkBackground(isDark);
+    lassoTool.setDarkBackground(isDark);
 
     if (!pageManager) return;
     lastRenderedZoom = 1;
@@ -429,11 +568,12 @@ window.addEventListener('resize', () => {
 
 // Keyboard shortcuts for presenter remotes & keyboards
 window.addEventListener('keydown', (e) => {
+  if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
   if (e.key === 'ArrowRight' || e.key === 'PageDown') {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     pageManager.nextPage();
   } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-    pageManager.captureCurrentThumbnail(inkCanvas);
+    pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     pageManager.prevPage();
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault();
@@ -441,6 +581,9 @@ window.addEventListener('keydown', (e) => {
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
     e.preventDefault();
     performRedo(false);
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    saveCboardProject(pageManager).then((ok) => ok && showToast(t('toastProjectSaved')));
   } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
     e.preventDefault();
     toggleZoomView();
@@ -449,8 +592,62 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Crash recovery banner check on startup
+// Handle files opened via Windows "Open with Captnz Board" / file association
+async function handleOpenFilePath(filePath) {
+  if (!filePath) return;
+  try {
+    const res = await openFileFromPath(filePath);
+    if (!res) return;
+    if (res.kind === 'cboard') {
+      await loadCboardFromBytes(res.bytes, pageManager);
+      showToast(`${t('toastProjectLoaded')}: ${res.name}`);
+    } else if (res.kind === 'pdf') {
+      pageManager.loadPdfDocument(`pdf_${Date.now()}`, res.pdfDoc, res.rawBytes, true);
+      showToast(`${t('toastPdfLoaded')}: ${res.name}`);
+    } else if (res.kind === 'ppt') {
+      if (res.mode === 'pdf') {
+        pageManager.loadPdfDocument(`ppt_${Date.now()}`, res.pdfDoc, res.rawBytes, true);
+        showToast(`${t('toastPptLoaded')}: ${res.name}`);
+      } else {
+        pageManager.loadFallbackPptSlides(res.slides);
+        showToast(t('toastPptFallback'), 3000);
+      }
+    } else if (res.kind === 'image') {
+      pageManager.addImagePage(res.dataUrl);
+      showToast(`${t('toastImageAdded')}: ${res.name}`);
+    }
+    recoveryStore.scheduleSave(pageManager);
+  } catch (err) {
+    showToast(err?.message || 'Could not open file', 3800);
+  }
+}
+
+async function initWindowsFileAssociationBridge() {
+  if (!isTauriRuntime()) return;
+  try {
+    const { listen } = await import('@tauri-apps/api/event');
+    const { invoke } = await import('@tauri-apps/api/core');
+
+    await listen('open-file-path', (event) => {
+      handleOpenFilePath(event.payload);
+    });
+
+    const startupPath = await invoke('take_startup_file_path');
+    if (startupPath) {
+      await handleOpenFilePath(startupPath);
+      return true;
+    }
+  } catch {
+    // Non-fatal outside desktop shell
+  }
+  return false;
+}
+
+// Startup: check Windows file-open arg first; otherwise check crash recovery banner
 (async () => {
+  const openedExternal = await initWindowsFileAssociationBridge();
+  if (openedExternal) return;
+
   const hasBackup = await recoveryStore.hasRecoverableSession();
   if (!hasBackup) return;
   const banner = document.getElementById('recovery-banner');

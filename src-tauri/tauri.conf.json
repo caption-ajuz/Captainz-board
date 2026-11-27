@@ -32,6 +32,34 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["nsis", "msi"],
+    "fileAssociations": [
+      {
+        "ext": ["cboard"],
+        "name": "Captnz Board Project",
+        "description": "Captnz Board Editable Whiteboard Project",
+        "role": "Editor",
+        "mimeType": "application/x-captnz-board"
+      },
+      {
+        "ext": ["pdf"],
+        "name": "PDF Document",
+        "description": "Portable Document Format",
+        "role": "Viewer",
+        "mimeType": "application/pdf"
+      },
+      {
+        "ext": ["pptx", "ppt"],
+        "name": "PowerPoint Presentation",
+        "description": "Microsoft PowerPoint Presentation",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["png", "jpg", "jpeg"],
+        "name": "Image File",
+        "description": "Image for Whiteboard Annotation",
+        "role": "Viewer"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

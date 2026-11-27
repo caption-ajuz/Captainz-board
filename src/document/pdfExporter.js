@@ -4,12 +4,65 @@
 
 import { jsPDF } from 'jspdf';
 import { isTauriRuntime } from './fileImporter.js';
+import { svgMarkupToDataUrl } from '../engine/lassoSnip.js';
+
+function drawStickyNoteToCtx(ctx, st) {
+  ctx.save();
+  ctx.fillStyle = st.color || '#fef08a';
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.22)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(st.x, st.y, st.w, st.h, 8);
+  } else {
+    ctx.rect(st.x, st.y, st.w, st.h);
+  }
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.14)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Header divider
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.08)';
+  ctx.fillRect(st.x, st.y, st.w, 26);
+
+  // Text lines
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '500 14px "Segoe UI", system-ui, sans-serif';
+  const pad = 12;
+  const maxW = Math.max(40, st.w - pad * 2);
+  const words = (st.text || '').split(/(\s+)/);
+  let line = '';
+  let y = st.y + 46;
+  for (const token of words) {
+    if (token === '\n') {
+      ctx.fillText(line, st.x + pad, y, maxW);
+      line = '';
+      y += 20;
+      continue;
+    }
+    const test = line + token;
+    if (ctx.measureText(test).width > maxW && line.trim()) {
+      ctx.fillText(line, st.x + pad, y, maxW);
+      line = token.trimStart();
+      y += 20;
+    } else {
+      line = test;
+    }
+    if (y > st.y + st.h - 10) break;
+  }
+  if (line && y <= st.y + st.h - 10) {
+    ctx.fillText(line, st.x + pad, y, maxW);
+  }
+  ctx.restore();
+}
 
 export async function exportSessionToPdf(pageManager, inkEngine) {
   const pages = pageManager.pages;
   if (!pages.length) return false;
 
-  // Export at crisp 1920x1080 (2x high-DPI scaling) matching the live aspect ratio
   const cssW = window.innerWidth || 1920;
   const cssH = window.innerHeight || 1080;
   const exportDpr = 2;
@@ -25,6 +78,11 @@ export async function exportSessionToPdf(pageManager, inkEngine) {
   const bgOff = document.createElement('canvas');
   bgOff.width = Math.round(cssW * exportDpr);
   bgOff.height = Math.round(cssH * exportDpr);
+
+  const hlOff = document.createElement('canvas');
+  hlOff.width = bgOff.width;
+  hlOff.height = bgOff.height;
+  const hlOffCtx = hlOff.getContext('2d');
 
   const inkOff = document.createElement('canvas');
   inkOff.width = bgOff.width;
@@ -43,33 +101,63 @@ export async function exportSessionToPdf(pageManager, inkEngine) {
     // 1. Render board background / PDF slide / Image
     await pageManager.renderPageBackground(page, bgOff, exportDpr);
 
-    // 2. Render ink strokes at export DPR
+    // 2. Render highlight & ink strokes onto separated layers at export DPR
+    hlOffCtx.setTransform(1, 0, 0, 1, 0, 0);
+    hlOffCtx.clearRect(0, 0, hlOff.width, hlOff.height);
+    hlOffCtx.setTransform(exportDpr, 0, 0, exportDpr, 0, 0);
+
     inkOffCtx.setTransform(1, 0, 0, 1, 0, 0);
     inkOffCtx.clearRect(0, 0, inkOff.width, inkOff.height);
     inkOffCtx.setTransform(exportDpr, 0, 0, exportDpr, 0, 0);
+
     for (const stroke of page.strokes) {
-      inkEngine.drawStroke(inkOffCtx, stroke);
+      if (stroke.tool === 'highlighter') {
+        inkEngine.drawStroke(hlOffCtx, stroke, 1, { onDedicatedHighlightLayer: true });
+      } else if (stroke.tool === 'eraser-pixel' || stroke.tool === 'palm-eraser') {
+        inkEngine.drawStroke(hlOffCtx, stroke);
+        inkEngine.drawStroke(inkOffCtx, stroke);
+      } else {
+        inkEngine.drawStroke(inkOffCtx, stroke);
+      }
     }
 
-    // 3. Composite studio sheet + stamps + ink onto white PDF page backing
+    // 3. Composite background + behind-ink highlighter (multiply/screen) + stamps + ink
     mergedCtx.setTransform(1, 0, 0, 1, 0, 0);
     mergedCtx.fillStyle = '#ffffff';
     mergedCtx.fillRect(0, 0, merged.width, merged.height);
     mergedCtx.drawImage(bgOff, 0, 0);
 
-    // Draw snipped stamps
+    mergedCtx.save();
+    mergedCtx.globalCompositeOperation = page.background === 'blackboard' ? 'screen' : 'multiply';
+    mergedCtx.drawImage(hlOff, 0, 0);
+    mergedCtx.restore();
+
     if (page.stamps && page.stamps.length > 0) {
       mergedCtx.save();
       mergedCtx.setTransform(exportDpr, 0, 0, exportDpr, 0, 0);
       for (const st of page.stamps) {
+        if (st.kind === 'sticky') {
+          drawStickyNoteToCtx(mergedCtx, st);
+          continue;
+        }
+        const src = st.svgMarkup ? svgMarkupToDataUrl(st.svgMarkup) : st.dataUrl;
+        if (!src) continue;
         await new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
-            mergedCtx.drawImage(img, st.x, st.y, st.w, st.h);
+            mergedCtx.save();
+            if (st.rot) {
+              mergedCtx.translate(st.x + st.w / 2, st.y + st.h / 2);
+              mergedCtx.rotate((st.rot * Math.PI) / 180);
+              mergedCtx.drawImage(img, -st.w / 2, -st.h / 2, st.w, st.h);
+            } else {
+              mergedCtx.drawImage(img, st.x, st.y, st.w, st.h);
+            }
+            mergedCtx.restore();
             resolve();
           };
           img.onerror = resolve;
-          img.src = st.dataUrl;
+          img.src = src;
         });
       }
       mergedCtx.restore();
@@ -82,8 +170,8 @@ export async function exportSessionToPdf(pageManager, inkEngine) {
     pdf.addImage(imgData, 'JPEG', 0, 0, cssW, cssH, undefined, 'FAST');
   }
 
-  // Release temporary 2x export offscreen buffers immediately
   bgOff.width = bgOff.height = 0;
+  hlOff.width = hlOff.height = 0;
   inkOff.width = inkOff.height = 0;
   merged.width = merged.height = 0;
 

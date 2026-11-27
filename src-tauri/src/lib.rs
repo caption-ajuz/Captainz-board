@@ -6,7 +6,38 @@ use std::fs;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tauri::Manager;
+use std::sync::Mutex;
+use tauri::{Emitter, Manager};
+
+struct PendingOpenFile(Mutex<Option<String>>);
+
+fn is_supported_open_extension(path: &Path) -> bool {
+    match path.extension().and_then(|e| e.to_str()).map(|s| s.to_ascii_lowercase()) {
+        Some(ext) => matches!(
+            ext.as_str(),
+            "cboard" | "pdf" | "pptx" | "ppt" | "png" | "jpg" | "jpeg" | "webp"
+        ),
+        None => false,
+    }
+}
+
+fn extract_supported_file_arg(args: &[String]) -> Option<String> {
+    for arg in args.iter().skip(1) {
+        if arg.starts_with('-') {
+            continue;
+        }
+        let p = Path::new(arg);
+        if p.exists() && is_supported_open_extension(p) {
+            return Some(arg.clone());
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn take_startup_file_path(state: tauri::State<'_, PendingOpenFile>) -> Option<String> {
+    state.0.lock().ok().and_then(|mut guard| guard.take())
+}
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -184,11 +215,30 @@ fn clear_recovery_session(app: tauri::AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(PendingOpenFile(Mutex::new(None)))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+            if let Some(path) = extract_supported_file_arg(&args) {
+                let _ = app.emit("open-file-path", path);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(path) = extract_supported_file_arg(&args) {
+                if let Ok(mut guard) = app.state::<PendingOpenFile>().0.lock() {
+                    *guard = Some(path);
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
             write_file_bytes,
@@ -196,7 +246,8 @@ pub fn run() {
             extract_pptx_fallback,
             save_recovery_session,
             load_recovery_session,
-            clear_recovery_session
+            clear_recovery_session,
+            take_startup_file_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running Captnz Board");

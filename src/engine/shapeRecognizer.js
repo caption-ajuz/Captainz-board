@@ -1,6 +1,6 @@
 /**
- * Captnz Board — Draw-and-Hold Auto-Shape Recognizer
- * Recognizes Straight Line, Circle/Ellipse, Rectangle, and Triangle from freehand points.
+ * Captnz Board — Draw-and-Hold QuickShape Recognizer (100% Offline)
+ * Recognizes Straight Line, Arrow, Circle/Ellipse, Rectangle, and Triangle from freehand points.
  */
 
 function dist(a, b) {
@@ -74,7 +74,6 @@ export function maybeStraightenHighlighter(pts) {
   }
   if (maxDev > Math.max(22, direct * 0.1)) return null;
 
-  // Snap nearly horizontal/vertical highlights to exact 0° or 90°
   const angle = Math.abs(Math.atan2(end.y - start.y, end.x - start.x));
   const snappedEnd = { ...end };
   if (angle < 0.12 || Math.abs(angle - Math.PI) < 0.12) {
@@ -86,9 +85,81 @@ export function maybeStraightenHighlighter(pts) {
   return [start, snappedEnd];
 }
 
+function snapAxisEndpoint(start, end) {
+  const out = { x: end.x, y: end.y };
+  const angle = Math.abs(Math.atan2(out.y - start.y, out.x - start.x));
+  if (angle < 0.08 || Math.abs(angle - Math.PI) < 0.08) out.y = start.y;
+  else if (Math.abs(angle - Math.PI / 2) < 0.08) out.x = start.x;
+  return out;
+}
+
+/**
+ * Detects a single-stroke arrow: a straight shaft from start to tip,
+ * followed by a compact arrowhead barb/V-wing returning near the tip.
+ */
+function recognizeArrow(pts, diag) {
+  if (pts.length < 8) return null;
+  const start = pts[0];
+
+  let tipIdx = 0;
+  let maxDist = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = dist(start, pts[i]);
+    if (d > maxDist) {
+      maxDist = d;
+      tipIdx = i;
+    }
+  }
+
+  if (maxDist < 42 || tipIdx < Math.floor(pts.length * 0.42) || tipIdx >= pts.length - 2) {
+    return null;
+  }
+
+  const tip = pts[tipIdx];
+  const shaftPts = pts.slice(0, tipIdx + 1);
+  const shaftLen = pathLength(shaftPts);
+  if (shaftLen / maxDist > 1.18) return null;
+
+  let maxShaftDev = 0;
+  for (const p of shaftPts) {
+    maxShaftDev = Math.max(maxShaftDev, pointToSegmentDist(p, start, tip));
+  }
+  if (maxShaftDev > Math.max(16, maxDist * 0.09)) return null;
+
+  const headPts = pts.slice(tipIdx);
+  const headPathLen = pathLength(headPts);
+  let maxHeadRadius = 0;
+  for (const p of headPts) {
+    maxHeadRadius = Math.max(maxHeadRadius, dist(tip, p));
+  }
+
+  // Head must be a visible barb/V at the tip, smaller than the shaft itself
+  if (headPathLen < 12 || maxHeadRadius < 10 || maxHeadRadius > Math.min(maxDist * 0.46, diag * 0.48)) {
+    return null;
+  }
+
+  // Ensure the barb reverses back from the tip direction (not just extending the line)
+  const dirX = (tip.x - start.x) / maxDist;
+  const dirY = (tip.y - start.y) / maxDist;
+  let hasBackwardComponent = false;
+  for (let i = 1; i < headPts.length; i++) {
+    const vx = headPts[i].x - tip.x;
+    const vy = headPts[i].y - tip.y;
+    const proj = vx * dirX + vy * dirY;
+    if (proj < -6) {
+      hasBackwardComponent = true;
+      break;
+    }
+  }
+  if (!hasBackwardComponent) return null;
+
+  const snappedTip = snapAxisEndpoint(start, tip);
+  return { kind: 'arrow', x1: start.x, y1: start.y, x2: snappedTip.x, y2: snappedTip.y };
+}
+
 /**
  * Recognizes a geometric shape from freehand points.
- * Returns { kind: 'line'|'circle'|'rect'|'triangle', ...geometry } or null.
+ * Returns { kind: 'line'|'arrow'|'circle'|'rect'|'triangle', ...geometry } or null.
  */
 export function recognizeShape(pts) {
   if (!pts || pts.length < 6) return null;
@@ -102,26 +173,27 @@ export function recognizeShape(pts) {
   const totalLen = pathLength(pts);
   const directDist = dist(start, end);
 
-  // 1. Straight Line check (open stroke with low deviation)
+  // 1. Arrow check (before generic straight line / polygon checks)
+  const arrow = recognizeArrow(pts, diag);
+  if (arrow) return arrow;
+
+  // 2. Straight Line check (open stroke with low deviation)
   if (directDist > diag * 0.72 && totalLen / Math.max(directDist, 1) < 1.16) {
     let maxDev = 0;
     for (const p of pts) {
       maxDev = Math.max(maxDev, pointToSegmentDist(p, start, end));
     }
     if (maxDev < Math.max(18, directDist * 0.08)) {
-      const endPt = { x: end.x, y: end.y };
-      const angle = Math.abs(Math.atan2(endPt.y - start.y, endPt.x - start.x));
-      if (angle < 0.08 || Math.abs(angle - Math.PI) < 0.08) endPt.y = start.y;
-      else if (Math.abs(angle - Math.PI / 2) < 0.08) endPt.x = start.x;
+      const endPt = snapAxisEndpoint(start, end);
       return { kind: 'line', x1: start.x, y1: start.y, x2: endPt.x, y2: endPt.y };
     }
   }
 
-  // Closed shape requirement: start and end reasonably close relative to perimeter
+  // Closed shape requirement: start and end reasonably close relative to diagonal
   const closureRatio = directDist / Math.max(diag, 1);
   if (closureRatio > 0.48) return null;
 
-  // 2. Circle / Ellipse check: test radial consistency around bounding box center
+  // 3. Circle / Ellipse check: test radial consistency around bounding box center
   const cx = (bounds.minX + bounds.maxX) / 2;
   const cy = (bounds.minY + bounds.maxY) / 2;
   const rx = Math.max(bounds.w / 2, 1);
@@ -138,13 +210,12 @@ export function recognizeShape(pts) {
 
   // Simplify polygon to count corners for Triangle vs Rectangle
   const simplified = rdpSimplify(pts, diag * 0.075);
-  // Remove closing duplicate vertex if close to start
   const vertices = simplified.slice();
   if (vertices.length > 2 && dist(vertices[0], vertices[vertices.length - 1]) < diag * 0.25) {
     vertices.pop();
   }
 
-  // 3. Triangle check (3 distinct corners)
+  // 4. Triangle check (3 distinct corners)
   if (vertices.length === 3) {
     return {
       kind: 'triangle',
@@ -152,7 +223,7 @@ export function recognizeShape(pts) {
     };
   }
 
-  // 4. Rectangle check (4 corners & high rectangularity)
+  // 5. Rectangle check (4 corners & high rectangularity)
   if (vertices.length === 4 && meanCircleErr > 0.14) {
     return {
       kind: 'rect',
@@ -163,7 +234,7 @@ export function recognizeShape(pts) {
     };
   }
 
-  // 5. Circle / Ellipse fallback if radial fit is strong
+  // 6. Circle / Ellipse fallback if radial fit is strong
   if (meanCircleErr < 0.22) {
     const aspect = rx / ry;
     if (aspect > 0.82 && aspect < 1.22) {
@@ -173,7 +244,7 @@ export function recognizeShape(pts) {
     return { kind: 'circle', cx, cy, rx, ry };
   }
 
-  // 6. Rectangle fallback if 4-5 corners
+  // 7. Rectangle fallback if 4-5 corners
   if (vertices.length >= 4 && vertices.length <= 5) {
     return {
       kind: 'rect',

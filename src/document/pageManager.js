@@ -272,7 +272,7 @@ export class PageManager {
   }
 
   _hitTestShape(sh, pt, r) {
-    if (sh.kind === 'line') {
+    if (sh.kind === 'line' || sh.kind === 'arrow') {
       const dx = sh.x2 - sh.x1;
       const dy = sh.y2 - sh.y1;
       const l2 = dx * dx + dy * dy || 1;
@@ -626,7 +626,7 @@ export class PageManager {
    * Generates a lightweight 4:3 JPEG thumbnail for the current page from the live canvases,
    * reusing a single small offscreen canvas to avoid per-page buffer churn.
    */
-  captureCurrentThumbnail(inkCanvas) {
+  captureCurrentThumbnail(inkCanvas, highlighterCanvas = null, isDarkBg = false) {
     const page = this.getCurrentPage();
     if (!page) return;
     if (!this._thumbCanvas) {
@@ -639,6 +639,12 @@ export class PageManager {
     ctx.fillStyle = document.documentElement.dataset.theme === 'light' ? '#eef1f5' : '#0b0f17';
     ctx.fillRect(0, 0, thumb.width, thumb.height);
     ctx.drawImage(this.bgCanvas, 0, 0, thumb.width, thumb.height);
+    if (highlighterCanvas) {
+      ctx.save();
+      ctx.globalCompositeOperation = isDarkBg ? 'screen' : 'multiply';
+      ctx.drawImage(highlighterCanvas, 0, 0, thumb.width, thumb.height);
+      ctx.restore();
+    }
     if (inkCanvas) {
       ctx.drawImage(inkCanvas, 0, 0, thumb.width, thumb.height);
     }

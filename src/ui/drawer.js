@@ -6,6 +6,8 @@ import { applyLanguage, t } from '../i18n/translations.js';
 
 export class SlideDrawer {
   constructor({
+    onOpenCboard,
+    onSaveCboard,
     onOpenPdf,
     onOpenPpt,
     onImportImage,
@@ -47,6 +49,8 @@ export class SlideDrawer {
     });
 
     const drawerActions = [
+      ['btn-open-cboard', onOpenCboard],
+      ['btn-save-cboard', onSaveCboard],
       ['btn-open-pdf', onOpenPdf],
       ['btn-open-ppt', onOpenPpt],
       ['btn-import-img', onImportImage],

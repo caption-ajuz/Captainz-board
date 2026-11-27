@@ -1,17 +1,19 @@
 /**
- * Captnz Board — Zero-Latency Hardware-Accelerated Ink Engine
+ * Captnz Board — Zero-Latency Procreate-Style Multi-Brush Ink Engine
  * - Pointer Events + getCoalescedEvents()
- * - Quadratic Bezier midpoint smoothing
- * - Velocity & pressure-based stroke width variation
- * - 7 brushes/pens, Vanishing Ink (2.5s auto-fade), Red/Blue Laser, Stroke & Pixel Erasers
+ * - StreamLine real-time stabilization (0–100%)
+ * - 8 Brushes: Technical Pen, Calligraphy/Fountain Nib (30°–45°), Blackboard Chalk,
+ *   Soft Sketch Pencil, Monoline Marker, Dashed/Dotted Pen, Behind-Ink Highlighter, Vanishing Ink (3s)
+ * - QuickShape (Hold-to-Snap) for Line, Arrow, Circle/Ellipse, Rectangle, Triangle
+ * - Ruler edge-snapping hook, Red/Blue Laser, Stroke & Pixel Erasers
  */
 
 import { maybeStraightenHighlighter, recognizeShape } from './shapeRecognizer.js';
 
-const VANISH_HOLD_MS = 2500;
-const VANISH_FADE_MS = 600;
+const VANISH_HOLD_MS = 2400;
+const VANISH_FADE_MS = 600; // 3.0s total visible lifetime
 const LASER_TAIL_MS = 260;
-const HOLD_SHAPE_MS = 460;
+const HOLD_SHAPE_MS = 450;
 const HOLD_MOVE_TOLERANCE = 9;
 const MAX_DPR = 2;
 const MAX_CANVAS_PIXELS = 3840 * 2160; // Cap backing buffers to 4K UHD pixel budget
@@ -28,26 +30,69 @@ export function getOptimalDpr(cssW = window.innerWidth, cssH = window.innerHeigh
   return Math.max(1, Math.min(desired, MAX_DPR, budgetDpr));
 }
 
+/**
+ * Deterministic 64x64 procedural noise mask for Chalk & Graphite Pencil textures (100% offline).
+ */
+function createGrainMask(size, threshold, maxAlpha) {
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  let seed = 0x5f3759df;
+  for (let i = 0; i < img.data.length; i += 4) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const r = (seed & 0xffff) / 0xffff;
+    const alpha = r > threshold ? Math.round(((r - threshold) / (1 - threshold)) * 255 * maxAlpha) : 0;
+    img.data[i] = 255;
+    img.data[i + 1] = 255;
+    img.data[i + 2] = 255;
+    img.data[i + 3] = alpha;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
 export class InkEngine {
-  constructor({ inkCanvas, activeCanvas, onStrokeCommitted, onStrokeErased, onShapeSnapped }) {
+  constructor({
+    inkCanvas,
+    highlighterCanvas = null,
+    activeCanvas,
+    onStrokeCommitted,
+    onStrokeErased,
+    onShapeSnapped,
+  }) {
     this.inkCanvas = inkCanvas;
+    this.highlighterCanvas = highlighterCanvas;
     this.activeCanvas = activeCanvas;
     this.dpr = Number(inkCanvas.dataset?.dpr) || getOptimalDpr();
 
     // Hardware-accelerated low-latency desynchronized 2D contexts
     this.inkCtx = inkCanvas.getContext('2d', { alpha: true, desynchronized: true });
+    this.highlighterCtx = highlighterCanvas
+      ? highlighterCanvas.getContext('2d', { alpha: true, desynchronized: true })
+      : null;
     this.activeCtx = activeCanvas.getContext('2d', { alpha: true, desynchronized: true });
 
     this.onStrokeCommitted = onStrokeCommitted;
     this.onStrokeErased = onStrokeErased;
     this.onShapeSnapped = onShapeSnapped;
 
-    this.tool = 'fountain';
+    this.tool = 'calligraphy';
     this.color = '#111827';
     this.size = 4;
+    this.streamline = 0.35; // 0..1
+    this.nibAngle = 38; // 30..45 degrees for Calligraphy/Fountain Nib
+    this.dashStyle = 'dashed'; // 'dashed' | 'dotted'
+    this.quickShapeEnabled = true;
     this.isDarkBackground = false;
 
+    // Optional coordinate transformer (e.g. Ruler edge-snapping)
+    this.snapPointTransform = null;
+
     this.currentStroke = null;
+    this._rawLastPt = null;
+    this._smoothedPos = null;
     this.vanishingStrokes = [];
     this.laserTrail = [];
     this.laserActive = false;
@@ -55,13 +100,17 @@ export class InkEngine {
     this.holdTimer = null;
     this.holdAnchor = null;
     this.snappedShape = null;
-
     this._rafId = null;
+
+    this._chalkMask = createGrainMask(64, 0.22, 0.96);
+    this._pencilMask = createGrainMask(64, 0.34, 0.85);
+    this._patternCache = new Map();
   }
 
   setDpr(dpr) {
     this.dpr = dpr;
     this.inkCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.highlighterCtx?.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.activeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -79,14 +128,72 @@ export class InkEngine {
     this.size = Number(size) || 4;
   }
 
+  setStreamline(pct) {
+    const clamped = Math.max(0, Math.min(100, Number(pct) || 0));
+    this.streamline = clamped / 100;
+  }
+
+  setNibAngle(deg) {
+    this.nibAngle = Math.max(30, Math.min(45, Number(deg) || 38));
+  }
+
+  setDashStyle(style) {
+    this.dashStyle = style === 'dotted' ? 'dotted' : 'dashed';
+  }
+
+  setQuickShapeEnabled(enabled) {
+    this.quickShapeEnabled = Boolean(enabled);
+    if (!this.quickShapeEnabled) {
+      this._clearHoldTimer();
+      this.snappedShape = null;
+    }
+  }
+
   setDarkBackground(isDark) {
     this.isDarkBackground = Boolean(isDark);
+    if (this.highlighterCanvas) {
+      this.highlighterCanvas.style.mixBlendMode = this.isDarkBackground ? 'screen' : 'multiply';
+    }
+  }
+
+  setSnapPointTransform(fn) {
+    this.snapPointTransform = typeof fn === 'function' ? fn : null;
+  }
+
+  _getTexturedPattern(ctx, kind, color) {
+    const key = `${kind}:${color}`;
+    let entry = this._patternCache.get(key);
+    if (!entry) {
+      if (this._patternCache.size >= 24) {
+        const firstKey = this._patternCache.keys().next().value;
+        this._patternCache.delete(firstKey);
+      }
+      const mask = kind === 'chalk' ? this._chalkMask : this._pencilMask;
+      const tile = document.createElement('canvas');
+      tile.width = mask.width;
+      tile.height = mask.height;
+      const tctx = tile.getContext('2d');
+      tctx.fillStyle = color;
+      tctx.fillRect(0, 0, tile.width, tile.height);
+      tctx.globalCompositeOperation = 'destination-in';
+      tctx.drawImage(mask, 0, 0);
+      entry = { tile, pattern: ctx.createPattern(tile, 'repeat') };
+      this._patternCache.set(key, entry);
+    }
+    return entry.pattern || color;
+  }
+
+  _applyPointSnap(pt) {
+    if (!this.snapPointTransform) return pt;
+    const snapped = this.snapPointTransform(pt);
+    if (!snapped) return pt;
+    return { ...pt, x: snapped.x, y: snapped.y, snappedToGuide: Boolean(snapped.snapped) };
   }
 
   /**
-   * Compute dynamic width from pen pressure & pointer velocity.
+   * Compute dynamic width from pen pressure, tilt, nib angle & pointer velocity.
    */
-  _computeWidth(prevPt, pt, baseSize, tool) {
+  _computeWidth(prevPt, pt, baseSize, tool, nibAngle = this.nibAngle) {
     const dt = Math.max(pt.t - (prevPt?.t ?? pt.t), 1);
     const dist = prevPt ? Math.hypot(pt.x - prevPt.x, pt.y - prevPt.y) : 0;
     const velocity = dist / dt; // px per ms
@@ -95,30 +202,39 @@ export class InkEngine {
     const pressureFactor = hasRealPressure ? 0.45 + pt.pressure * 0.95 : 1.0;
 
     switch (tool) {
+      case 'technical':
+        return Math.max(1.0, baseSize * (hasRealPressure ? 0.9 + pt.pressure * 0.2 : 1.0));
+      case 'calligraphy':
       case 'fountain': {
-        // Slower = richer ink, faster = crisp taper (Apple Pencil feel)
-        const velFactor = Math.max(0.38, Math.min(1.28, 1.22 - velocity * 0.28));
-        return Math.max(1.0, baseSize * velFactor * pressureFactor);
-      }
-      case 'ballpoint': {
-        const velFactor = Math.max(0.82, Math.min(1.08, 1.04 - velocity * 0.08));
-        return Math.max(1.0, baseSize * 0.85 * velFactor * pressureFactor);
-      }
-      case 'calligraphy': {
-        // 40-degree angled chisel nib
         const dx = prevPt ? pt.x - prevPt.x : 1;
         const dy = prevPt ? pt.y - prevPt.y : 0;
-        const angle = Math.atan2(dy, dx);
-        const nibAngle = (40 * Math.PI) / 180;
-        const factor = 0.28 + 0.95 * Math.abs(Math.sin(angle - nibAngle));
-        return Math.max(1.2, baseSize * 1.6 * factor * pressureFactor);
+        const strokeAngle = Math.atan2(dy, dx);
+        const nibRad = ((nibAngle || 38) * Math.PI) / 180;
+        // Directional chisel nib + velocity/pressure thick-to-thin taper (great for English, Malayalam, Arabic)
+        const angleFactor = 0.28 + 0.92 * Math.abs(Math.sin(strokeAngle - nibRad));
+        const velFactor = Math.max(0.55, Math.min(1.24, 1.16 - velocity * 0.24));
+        return Math.max(1.1, baseSize * 1.48 * angleFactor * velFactor * pressureFactor);
       }
-      case 'highlighter':
-        return Math.max(14, baseSize * 4.2);
-      case 'pencil': {
-        const velFactor = Math.max(0.65, Math.min(1.15, 1.05 - velocity * 0.14));
+      case 'ballpoint': {
+        const velFactor = Math.max(0.84, Math.min(1.06, 1.02 - velocity * 0.06));
         return Math.max(1.0, baseSize * 0.9 * velFactor * pressureFactor);
       }
+      case 'chalk': {
+        const velFactor = Math.max(0.76, Math.min(1.18, 1.1 - velocity * 0.14));
+        return Math.max(2.4, baseSize * 1.45 * velFactor * pressureFactor);
+      }
+      case 'pencil': {
+        const tiltMag = Math.hypot(pt.tiltX || 0, pt.tiltY || 0);
+        const tiltBoost = tiltMag > 16 ? 1 + Math.min(0.85, (tiltMag - 16) / 45) : 1;
+        const velFactor = Math.max(0.68, Math.min(1.15, 1.05 - velocity * 0.14));
+        return Math.max(1.0, baseSize * 0.95 * velFactor * pressureFactor * tiltBoost);
+      }
+      case 'marker':
+        return Math.max(3.5, baseSize * 1.7 * (hasRealPressure ? 0.85 + pt.pressure * 0.3 : 1));
+      case 'dashed':
+        return Math.max(1.5, baseSize);
+      case 'highlighter':
+        return Math.max(14, baseSize * 4.2);
       case 'vanishing':
         return Math.max(3, baseSize * 1.15);
       case 'eraser-pixel':
@@ -130,14 +246,24 @@ export class InkEngine {
     }
   }
 
-  beginStroke(pt, overrideTool = null) {
+  beginStroke(rawPt, overrideTool = null) {
     const activeTool = overrideTool || this.tool;
     this.snappedShape = null;
     this._clearHoldTimer();
 
+    const pt = this._applyPointSnap(rawPt);
+
     if (activeTool === 'laser-red' || activeTool === 'laser-blue') {
+      this.activeCanvas.style.mixBlendMode = 'normal';
       this.laserActive = true;
-      this.laserTrail = [{ x: pt.x, y: pt.y, t: performance.now(), color: activeTool === 'laser-red' ? '#ff2a2a' : '#38bdf8' }];
+      this.laserTrail = [
+        {
+          x: pt.x,
+          y: pt.y,
+          t: performance.now(),
+          color: activeTool === 'laser-red' ? '#ff2a2a' : '#38bdf8',
+        },
+      ];
       this._ensureAnimationLoop();
       return;
     }
@@ -148,19 +274,31 @@ export class InkEngine {
       return;
     }
 
+    this._rawLastPt = pt;
+    this._smoothedPos = { x: pt.x, y: pt.y };
+
+    // Live active canvas blend mode for Behind-Ink Highlighter preview
+    if (activeTool === 'highlighter') {
+      this.activeCanvas.style.mixBlendMode = this.isDarkBackground ? 'screen' : 'multiply';
+    } else {
+      this.activeCanvas.style.mixBlendMode = 'normal';
+    }
+
     const startWidth = this._computeWidth(null, pt, this.size, activeTool);
     this.currentStroke = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       tool: activeTool,
       color: activeTool === 'vanishing' ? (this.color === '#111827' ? '#38bdf8' : this.color) : this.color,
       size: this.size,
+      nibAngle: this.nibAngle,
+      dashStyle: this.dashStyle,
       isDarkBg: this.isDarkBackground,
       points: [{ x: pt.x, y: pt.y, w: startWidth, t: pt.t, pressure: pt.pressure }],
       shape: null,
     };
 
     if (activeTool === 'eraser-pixel' || activeTool === 'palm-eraser') {
-      this._drawIncrementalSegment(this.inkCtx, this.currentStroke, 0);
+      this._drawIncrementalErase(this.currentStroke, 0);
     } else {
       this._renderActiveStroke();
     }
@@ -190,28 +328,43 @@ export class InkEngine {
     }
 
     const s = this.currentStroke;
-    for (const pt of points) {
+    const isEraser = s.tool === 'eraser-pixel' || s.tool === 'palm-eraser';
+    // StreamLine EMA coefficient (0% -> 1.0 instant, 100% -> 0.22 silky stabilization)
+    const alpha = isEraser ? 1 : 1 - this.streamline * 0.78;
+
+    for (const rawPt of points) {
+      const pt = this._applyPointSnap(rawPt);
+      this._rawLastPt = pt;
+
+      let sx = pt.x;
+      let sy = pt.y;
+      if (!isEraser && this._smoothedPos && this.streamline > 0 && !pt.snappedToGuide) {
+        sx = this._smoothedPos.x + (pt.x - this._smoothedPos.x) * alpha;
+        sy = this._smoothedPos.y + (pt.y - this._smoothedPos.y) * alpha;
+      }
+      this._smoothedPos = { x: sx, y: sy };
+
       const prev = s.points[s.points.length - 1];
-      const d = Math.hypot(pt.x - prev.x, pt.y - prev.y);
+      const d = Math.hypot(sx - prev.x, sy - prev.y);
       if (d < 1.1) continue; // Filter micro jitter
 
-      const rawW = this._computeWidth(prev, pt, s.size, s.tool);
-      // Low-pass smooth width transitions so lines look fluid
+      const smoothedPt = { ...pt, x: sx, y: sy };
+      const rawW = this._computeWidth(prev, smoothedPt, s.size, s.tool, s.nibAngle);
       const smoothW = prev.w * 0.65 + rawW * 0.35;
-      s.points.push({ x: pt.x, y: pt.y, w: smoothW, t: pt.t, pressure: pt.pressure });
+      s.points.push({ x: sx, y: sy, w: smoothW, t: pt.t, pressure: pt.pressure });
 
-      if (s.tool === 'eraser-pixel' || s.tool === 'palm-eraser') {
-        this._drawIncrementalSegment(this.inkCtx, s, s.points.length - 1);
+      if (isEraser) {
+        this._drawIncrementalErase(s, s.points.length - 1);
       }
 
-      // Reset draw-and-hold timer if pointer moved beyond tolerance
+      // Reset QuickShape draw-and-hold timer if pointer moved beyond tolerance
       if (!this.holdAnchor || Math.hypot(pt.x - this.holdAnchor.x, pt.y - this.holdAnchor.y) > HOLD_MOVE_TOLERANCE) {
         this.snappedShape = null;
         this._scheduleHoldCheck(pt);
       }
     }
 
-    if (s.tool !== 'eraser-pixel' && s.tool !== 'palm-eraser') {
+    if (!isEraser) {
       this._renderActiveStroke();
     }
   }
@@ -227,9 +380,31 @@ export class InkEngine {
     if (!this.currentStroke) return;
     const stroke = this.currentStroke;
     this.currentStroke = null;
+    const rawLast = this._rawLastPt;
+    this._rawLastPt = null;
+    this._smoothedPos = null;
+    this.activeCanvas.style.mixBlendMode = 'normal';
 
     if (stroke.tool === 'eraser-stroke') {
       return;
+    }
+
+    // StreamLine catch-up tail so stabilized endpoints meet the lifted pen cleanly
+    if (
+      rawLast &&
+      this.streamline > 0 &&
+      !this.snappedShape &&
+      stroke.points.length > 1 &&
+      !stroke.tool.includes('eraser')
+    ) {
+      const last = stroke.points[stroke.points.length - 1];
+      const gap = Math.hypot(rawLast.x - last.x, rawLast.y - last.y);
+      if (gap > 2 && gap < 48) {
+        const midX = (last.x + rawLast.x) / 2;
+        const midY = (last.y + rawLast.y) / 2;
+        stroke.points.push({ x: midX, y: midY, w: last.w, t: rawLast.t, pressure: rawLast.pressure });
+        stroke.points.push({ x: rawLast.x, y: rawLast.y, w: last.w * 0.9, t: rawLast.t, pressure: rawLast.pressure });
+      }
     }
 
     // Vanishing Ink: move to fading animation queue instead of permanent page strokes
@@ -238,15 +413,6 @@ export class InkEngine {
       this.vanishingStrokes.push(stroke);
       this._ensureAnimationLoop();
       return;
-    }
-
-    // Auto-Shape tool always tries to snap on release
-    if (stroke.tool === 'shape' && !this.snappedShape) {
-      const detected = recognizeShape(stroke.points);
-      if (detected) {
-        this.snappedShape = detected;
-        this.onShapeSnapped?.(detected.kind);
-      }
     }
 
     if (this.snappedShape) {
@@ -259,29 +425,60 @@ export class InkEngine {
       }
     }
 
-    // Clear active preview and commit permanently
     this._clearActiveCanvas();
-    this.drawStroke(this.inkCtx, stroke);
+    this._commitStrokeToLayer(stroke);
     this.onStrokeCommitted?.(stroke);
+  }
+
+  /**
+   * Commits a pre-built stroke (e.g. from Geometry Compass) directly to the board.
+   */
+  commitSyntheticStroke(stroke) {
+    if (!stroke) return;
+    this._commitStrokeToLayer(stroke);
+    this.onStrokeCommitted?.(stroke);
+  }
+
+  _commitStrokeToLayer(stroke) {
+    if (stroke.tool === 'highlighter' && this.highlighterCtx) {
+      this.drawStroke(this.highlighterCtx, stroke, 1, { onDedicatedHighlightLayer: true });
+    } else if ((stroke.tool === 'eraser-pixel' || stroke.tool === 'palm-eraser') && this.highlighterCtx) {
+      this.drawStroke(this.inkCtx, stroke);
+      this.drawStroke(this.highlighterCtx, stroke);
+    } else {
+      this.drawStroke(this.inkCtx, stroke);
+    }
   }
 
   cancelStroke() {
     this._clearHoldTimer();
     this.currentStroke = null;
+    this._rawLastPt = null;
+    this._smoothedPos = null;
     this.snappedShape = null;
     this.laserActive = false;
+    this.activeCanvas.style.mixBlendMode = 'normal';
     this._clearActiveCanvas();
   }
 
   _scheduleHoldCheck(pt) {
     this._clearHoldTimer();
-    if (!this.currentStroke) return;
-    const eligible = ['fountain', 'ballpoint', 'calligraphy', 'pencil', 'shape'].includes(this.currentStroke.tool);
+    if (!this.quickShapeEnabled || !this.currentStroke) return;
+    const eligible = [
+      'technical',
+      'calligraphy',
+      'chalk',
+      'pencil',
+      'marker',
+      'dashed',
+      'fountain',
+      'ballpoint',
+    ].includes(this.currentStroke.tool);
     if (!eligible) return;
 
     this.holdAnchor = { x: pt.x, y: pt.y };
     this.holdTimer = setTimeout(() => {
-      if (!this.currentStroke || this.currentStroke.points.length < 8) return;
+      if (!this.quickShapeEnabled || !this.currentStroke || this.currentStroke.points.length < 8) return;
       const detected = recognizeShape(this.currentStroke.points);
       if (detected) {
         this.snappedShape = detected;
@@ -299,6 +496,7 @@ export class InkEngine {
   }
 
   _clearCanvas(ctx, canvas) {
+    if (!ctx || !canvas) return;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -309,9 +507,6 @@ export class InkEngine {
     this._clearCanvas(this.activeCtx, this.activeCanvas);
   }
 
-  /**
-   * Releases transient active-layer buffers when switching pages or sessions.
-   */
   clearTransient() {
     this.cancelStroke();
     this.vanishingStrokes = [];
@@ -326,47 +521,72 @@ export class InkEngine {
   _renderActiveStroke() {
     this._clearActiveCanvas();
     if (!this.currentStroke) return;
-    if (this.snappedShape) {
-      this.drawStroke(this.activeCtx, { ...this.currentStroke, shape: this.snappedShape });
-    } else {
-      this.drawStroke(this.activeCtx, this.currentStroke);
-    }
+    const target = this.snappedShape ? { ...this.currentStroke, shape: this.snappedShape } : this.currentStroke;
+    this.drawStroke(this.activeCtx, target, 1, {
+      onDedicatedHighlightLayer: this.currentStroke.tool === 'highlighter',
+    });
   }
 
-  _drawIncrementalSegment(ctx, stroke, idx) {
-    const pts = stroke.points;
-    if (pts.length === 0) return;
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(0,0,0,1)';
-    const p = pts[idx];
-    const prev = idx > 0 ? pts[idx - 1] : p;
-    ctx.lineWidth = p.w;
-    ctx.beginPath();
-    ctx.moveTo(prev.x, prev.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    ctx.restore();
+  _drawIncrementalErase(stroke, idx) {
+    const drawOn = (ctx) => {
+      if (!ctx) return;
+      const pts = stroke.points;
+      if (pts.length === 0) return;
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      const p = pts[idx];
+      const prev = idx > 0 ? pts[idx - 1] : p;
+      ctx.lineWidth = p.w;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ctx.restore();
+    };
+    drawOn(this.inkCtx);
+    drawOn(this.highlighterCtx);
+  }
+
+  _applyDashIfNeeded(ctx, stroke) {
+    if (stroke.tool !== 'dashed') return;
+    const base = Math.max(2, stroke.size || 4);
+    if (stroke.dashStyle === 'dotted') {
+      ctx.setLineDash([0.5, base * 2.3]);
+    } else {
+      ctx.setLineDash([base * 3.4, base * 2.2]);
+    }
   }
 
   /**
    * Renders any stroke or snapped geometric shape onto a target 2D canvas context.
    */
-  drawStroke(ctx, stroke, alphaOverride = 1) {
-    if (!stroke) return;
+  drawStroke(ctx, stroke, alphaOverride = 1, { onDedicatedHighlightLayer = false } = {}) {
+    if (!stroke || !ctx) return;
     ctx.save();
+
+    const isChalk = stroke.tool === 'chalk';
+    const isPencil = stroke.tool === 'pencil';
 
     if (stroke.tool === 'eraser-pixel' || stroke.tool === 'palm-eraser') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = 'rgba(0,0,0,1)';
     } else if (stroke.tool === 'highlighter') {
-      ctx.globalCompositeOperation = stroke.isDarkBg ? 'screen' : 'multiply';
-      ctx.globalAlpha = 0.38 * alphaOverride;
+      if (!onDedicatedHighlightLayer) {
+        ctx.globalCompositeOperation = stroke.isDarkBg ? 'screen' : 'multiply';
+      }
+      ctx.globalAlpha = 0.42 * alphaOverride;
       ctx.strokeStyle = stroke.color;
-    } else if (stroke.tool === 'pencil') {
+    } else if (isChalk) {
+      ctx.globalAlpha = 0.88 * alphaOverride;
+      ctx.strokeStyle = this._getTexturedPattern(ctx, 'chalk', stroke.color);
+    } else if (isPencil) {
       ctx.globalAlpha = 0.72 * alphaOverride;
+      ctx.strokeStyle = this._getTexturedPattern(ctx, 'pencil', stroke.color);
+    } else if (stroke.tool === 'marker') {
+      ctx.globalAlpha = 0.94 * alphaOverride;
       ctx.strokeStyle = stroke.color;
     } else if (stroke.tool === 'vanishing') {
       ctx.globalAlpha = alphaOverride;
@@ -380,6 +600,7 @@ export class InkEngine {
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    this._applyDashIfNeeded(ctx, stroke);
 
     // 1. Snapped Geometric Shape
     if (stroke.shape) {
@@ -389,6 +610,15 @@ export class InkEngine {
       if (sh.kind === 'line') {
         ctx.moveTo(sh.x1, sh.y1);
         ctx.lineTo(sh.x2, sh.y2);
+      } else if (sh.kind === 'arrow') {
+        ctx.moveTo(sh.x1, sh.y1);
+        ctx.lineTo(sh.x2, sh.y2);
+        const angle = Math.atan2(sh.y2 - sh.y1, sh.x2 - sh.x1);
+        const headLen = Math.max(14, Math.min(28, stroke.size * 3.4));
+        const spread = Math.PI / 6;
+        ctx.moveTo(sh.x2 - headLen * Math.cos(angle - spread), sh.y2 - headLen * Math.sin(angle - spread));
+        ctx.lineTo(sh.x2, sh.y2);
+        ctx.lineTo(sh.x2 - headLen * Math.cos(angle + spread), sh.y2 - headLen * Math.sin(angle + spread));
       } else if (sh.kind === 'circle') {
         ctx.ellipse(sh.cx, sh.cy, Math.max(1, sh.rx), Math.max(1, sh.ry), 0, 0, Math.PI * 2);
       } else if (sh.kind === 'rect') {
@@ -420,8 +650,13 @@ export class InkEngine {
       return;
     }
 
-    // Highlighter uses a single smooth uniform path so multiply blend doesn't double-darken joints
-    if (stroke.tool === 'highlighter') {
+    // Uniform-width continuous quadratic path for Highlighter, Marker, Technical, and Dashed/Dotted
+    if (
+      stroke.tool === 'highlighter' ||
+      stroke.tool === 'dashed' ||
+      stroke.tool === 'marker' ||
+      stroke.tool === 'technical'
+    ) {
       ctx.lineWidth = pts[0].w;
       ctx.beginPath();
       ctx.moveTo(pts[0].x, pts[0].y);
@@ -437,11 +672,13 @@ export class InkEngine {
       return;
     }
 
-    // Variable-width Quadratic Bezier midpoint smoothing for Fountain, Ballpoint, Calligraphy, Pencil, Vanishing
+    // Variable-width Quadratic Bezier midpoint smoothing for Calligraphy, Chalk, Pencil, Vanishing, legacy brushes
     for (let i = 1; i < pts.length; i++) {
-      const p0 = i === 1 ? pts[0] : { x: (pts[i - 2].x + pts[i - 1].x) / 2, y: (pts[i - 2].y + pts[i - 1].y) / 2 };
+      const p0 =
+        i === 1 ? pts[0] : { x: (pts[i - 2].x + pts[i - 1].x) / 2, y: (pts[i - 2].y + pts[i - 1].y) / 2 };
       const p1 = pts[i - 1];
-      const p2 = i === pts.length - 1 ? pts[i] : { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
+      const p2 =
+        i === pts.length - 1 ? pts[i] : { x: (pts[i - 1].x + pts[i].x) / 2, y: (pts[i - 1].y + pts[i].y) / 2 };
 
       ctx.lineWidth = pts[i].w;
       ctx.beginPath();
@@ -449,14 +686,11 @@ export class InkEngine {
       ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
       ctx.stroke();
 
-      // Subtle graphite grain pass for Sketch Pencil
-      if (stroke.tool === 'pencil') {
+      // Subtle powdery outer dust pass for Blackboard Chalk
+      if (isChalk) {
         ctx.save();
-        ctx.globalAlpha = 0.25 * alphaOverride;
-        ctx.lineWidth = Math.max(0.8, pts[i].w * 0.55);
-        ctx.beginPath();
-        ctx.moveTo(p0.x + 1.2, p0.y - 1.1);
-        ctx.quadraticCurveTo(p1.x - 1.0, p1.y + 1.2, p2.x + 0.8, p2.y + 0.9);
+        ctx.globalAlpha = 0.22 * alphaOverride;
+        ctx.lineWidth = pts[i].w + 2.2;
         ctx.stroke();
         ctx.restore();
       }
@@ -478,18 +712,20 @@ export class InkEngine {
   }
 
   /**
-   * Re-renders all committed strokes of the current page onto #ink-canvas.
+   * Re-renders all committed strokes of the current page onto #highlighter-canvas and #ink-canvas.
    */
   redrawPageStrokes(strokes) {
     this._clearCanvas(this.inkCtx, this.inkCanvas);
+    if (this.highlighterCtx) {
+      this._clearCanvas(this.highlighterCtx, this.highlighterCanvas);
+    }
     for (const stroke of strokes) {
-      this.drawStroke(this.inkCtx, stroke);
+      this._commitStrokeToLayer(stroke);
     }
   }
 
   /**
-   * On-demand animation loop for Vanishing Ink (2.5s hold + smooth fade) and Laser Pointer.
-   * Stops automatically when no transient trails remain to save 4K GPU/CPU idle work.
+   * On-demand animation loop for Vanishing Ink (3.0s lifetime) and Laser Pointer.
    */
   _ensureAnimationLoop() {
     if (this._rafId !== null) return;
@@ -497,15 +733,15 @@ export class InkEngine {
     const tick = (now) => {
       this._clearActiveCanvas();
 
-      // Keep live stroke visible if drawing simultaneously
       if (this.currentStroke && !this.currentStroke.tool.includes('eraser')) {
         this.drawStroke(
           this.activeCtx,
-          this.snappedShape ? { ...this.currentStroke, shape: this.snappedShape } : this.currentStroke
+          this.snappedShape ? { ...this.currentStroke, shape: this.snappedShape } : this.currentStroke,
+          1,
+          { onDedicatedHighlightLayer: this.currentStroke.tool === 'highlighter' }
         );
       }
 
-      // Render Vanishing Ink strokes
       this.vanishingStrokes = this.vanishingStrokes.filter((s) => {
         const age = now - s.createdAt;
         if (age >= VANISH_HOLD_MS + VANISH_FADE_MS) return false;
@@ -514,7 +750,6 @@ export class InkEngine {
         return true;
       });
 
-      // Render Laser Pointer comet trail + glowing tip
       this.laserTrail = this.laserTrail.filter((p) => now - p.t < LASER_TAIL_MS);
       if (this.laserTrail.length > 0) {
         const ctx = this.activeCtx;
@@ -533,7 +768,6 @@ export class InkEngine {
           ctx.lineTo(p1.x, p1.y);
           ctx.stroke();
         }
-        // Glowing laser dot
         ctx.globalAlpha = 1;
         ctx.shadowColor = tip.color;
         ctx.shadowBlur = 22;
