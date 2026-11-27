@@ -19,17 +19,17 @@
     <!-- Lasso Action Floating Pill (appears right after a lasso snip) -->
     <div id="lasso-actions" class="glass-pill lasso-actions hidden">
       <button id="btn-lasso-move" class="pill-btn" data-i18n="lassoPasteHere">Paste Here</button>
-      <button id="btn-lasso-new-page" class="pill-btn accent" data-i18n="lassoNewPage">Snip → New Blank Page</button>
+      <button id="btn-lasso-new-page" class="pill-btn accent" data-i18n="lassoNewPage">Snip to New Page</button>
       <button id="btn-lasso-cancel" class="pill-btn danger" data-i18n="cancel">Cancel</button>
     </div>
   </main>
 
   <!-- Menu Toggle -->
   <button id="btn-hamburger" class="glass-icon-btn hamburger-btn" aria-label="Menu" title="Menu (M)">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-      <line x1="4" y1="6" x2="20" y2="6" />
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+      <line x1="4" y1="6.5" x2="20" y2="6.5" />
       <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="18" x2="20" y2="18" />
+      <line x1="4" y1="17.5" x2="20" y2="17.5" />
     </svg>
   </button>
 
@@ -40,10 +40,21 @@
   <aside id="slide-drawer" class="slide-drawer" aria-hidden="true" inert>
     <div class="drawer-header">
       <div class="brand-lockup">
-        <span class="brand-dot"></span>
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="14" rx="2.5" />
+            <path d="M8 20h8" />
+            <path d="M8 13l3.2-3.2 2.3 2.3L16.5 9" />
+          </svg>
+        </span>
         <span class="brand-name">Captnz Board</span>
       </div>
-      <button id="btn-close-drawer" class="icon-btn-sm" aria-label="Close">✕</button>
+      <button id="btn-close-drawer" class="icon-btn-sm" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="18" y1="6" x2="6" y2="18" />
+        </svg>
+      </button>
     </div>
 
     <!-- File Actions -->
@@ -116,8 +127,8 @@
 
   <!-- Previous Page (<) -->
   <div id="nav-prev-dock" class="draggable-dock nav-prev-dock" data-drag-id="nav-prev">
-    <button id="btn-prev-page" class="glass-nav-btn" aria-label="Previous Page" title="Previous Page (←)">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <button id="btn-prev-page" class="glass-nav-btn" aria-label="Previous Page" title="Previous Page">
+      <svg class="nav-arrow-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="15 18 9 12 15 6" />
       </svg>
     </button>
@@ -127,13 +138,13 @@
   <div id="nav-next-dock" class="draggable-dock nav-next-dock" data-drag-id="nav-next">
     <div class="glass-nav-cluster">
       <span id="page-indicator" class="page-indicator" title="Drag to reposition">1 / 1</span>
-      <button id="btn-next-page" class="glass-nav-btn" aria-label="Next Page" title="Next Page (→)">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <button id="btn-next-page" class="glass-nav-btn" aria-label="Next Page" title="Next Page">
+        <svg class="nav-arrow-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
       <button id="btn-add-blank" class="glass-nav-btn accent-add" aria-label="Insert Blank Page" title="Insert Blank Page After Current (+)">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -149,27 +160,63 @@
         <div class="panel-group-title" data-i18n="brushes">Brushes &amp; Pens</div>
         <div class="tool-grid">
           <button class="tool-btn active" data-tool="fountain" title="Fountain Pen">
-            <span class="tool-ico">✒️</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                <path d="M2 2l7.586 7.586" />
+                <circle cx="11" cy="11" r="2" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolFountain">Fountain</span>
           </button>
           <button class="tool-btn" data-tool="ballpoint" title="Ballpoint Pen">
-            <span class="tool-ico">🖊️</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolBallpoint">Ballpoint</span>
           </button>
           <button class="tool-btn" data-tool="calligraphy" title="Calligraphy Marker">
-            <span class="tool-ico">🖋️</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15.5 3.5l5 5L8 21H3v-5L15.5 3.5z" />
+                <path d="M12 7l5 5" />
+                <path d="M3 21l4-1" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolCalligraphy">Calligraphy</span>
           </button>
           <button class="tool-btn" data-tool="highlighter" title="Highlighter">
-            <span class="tool-ico">🖍️</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l-6 6v3h9l3-3" />
+                <path d="M22 12l-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolHighlighter">Highlighter</span>
           </button>
           <button class="tool-btn" data-tool="pencil" title="Sketch Pencil">
-            <span class="tool-ico">✏️</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                <path d="M14 6l4 4" />
+                <path d="M5 17l2 2" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolPencil">Pencil</span>
           </button>
           <button class="tool-btn" data-tool="vanishing" title="Vanishing Ink (2.5s)">
-            <span class="tool-ico">✨</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 18c4-6 8-6 12 0" />
+                <path d="M12 4v3" />
+                <path d="M6.5 7.5l2 2" />
+                <path d="M17.5 7.5l-2 2" />
+                <path d="M19 14l2-1" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolVanishing">Vanishing</span>
           </button>
         </div>
@@ -180,27 +227,50 @@
         <div class="panel-group-title" data-i18n="smartTools">Tools &amp; Laser</div>
         <div class="tool-grid">
           <button class="tool-btn" data-tool="laser-red" title="Red Laser Pointer">
-            <span class="tool-ico laser-dot red"></span>
+            <span class="tool-ico"><span class="laser-dot red"></span></span>
             <span class="tool-lbl" data-i18n="toolLaserRed">Red Laser</span>
           </button>
           <button class="tool-btn" data-tool="laser-blue" title="Blue Laser Pointer">
-            <span class="tool-ico laser-dot blue"></span>
+            <span class="tool-ico"><span class="laser-dot blue"></span></span>
             <span class="tool-lbl" data-i18n="toolLaserBlue">Blue Laser</span>
           </button>
           <button class="tool-btn" data-tool="eraser-stroke" title="Stroke Eraser">
-            <span class="tool-ico">🧹</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 21h10" />
+                <path d="M5.5 13.5L13 6a2.12 2.12 0 0 1 3 0l3 3a2.12 2.12 0 0 1 0 3l-7.5 7.5a2 2 0 0 1-1.4.6H7.4a2 2 0 0 1-1.4-.6l-1.5-1.5a2.12 2.12 0 0 1 0-3z" />
+                <path d="M9.5 9.5l5 5" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolEraserStroke">Stroke Erase</span>
           </button>
           <button class="tool-btn" data-tool="eraser-pixel" title="Pixel Eraser">
-            <span class="tool-ico">🧽</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13l-8 8H5l-2-2 9-9 6 3z" />
+                <path d="M12 10l4-4 5 5-4 4" />
+                <circle cx="19" cy="19" r="1.2" fill="currentColor" stroke="none" />
+                <circle cx="15" cy="20" r="1" fill="currentColor" stroke="none" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolEraserPixel">Pixel Erase</span>
           </button>
           <button class="tool-btn" data-tool="lasso" title="Lasso Snip Tool">
-            <span class="tool-ico">✂️</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="10" rx="8" ry="5.5" stroke-dasharray="3.5 2.5" />
+                <path d="M9 15.5c0 2.5 2 4 4.5 4" />
+                <circle cx="14.5" cy="19.5" r="1.5" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolLasso">Lasso Snip</span>
           </button>
           <button class="tool-btn" data-tool="shape" title="Draw-and-Hold Auto-Shapes">
-            <span class="tool-ico">⬠</span>
+            <span class="tool-ico">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 3 20.5 9.2 17.3 19.2 6.7 19.2 3.5 9.2" />
+              </svg>
+            </span>
             <span class="tool-lbl" data-i18n="toolShape">Auto-Shape</span>
           </button>
         </div>
@@ -218,7 +288,12 @@
           <button class="color-swatch" data-color="#8b5cf6" style="--swatch:#8b5cf6" aria-label="Violet"></button>
           <label class="color-picker-wrap" title="Custom Color">
             <input type="color" id="custom-color-input" value="#06b6d4" />
-            <span class="color-wheel-icon">+</span>
+            <span class="color-wheel-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </span>
           </label>
         </div>
       </div>
@@ -233,23 +308,52 @@
       </div>
 
       <div class="panel-footer-actions">
-        <button id="btn-undo" class="mini-action-btn" title="Undo (Ctrl+Z • 2-Finger Tap)">↶ <span data-i18n="undo">Undo</span></button>
-        <button id="btn-redo" class="mini-action-btn" title="Redo (Ctrl+Y • 3-Finger Tap)">↷ <span data-i18n="redo">Redo</span></button>
-        <button id="btn-reset-zoom" class="mini-action-btn" title="Reset Zoom (Ctrl+0)">100%</button>
+        <button id="btn-undo" class="mini-action-btn" title="Undo (Ctrl+Z, 2-Finger Tap)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 14L4 9l5-5" />
+            <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+          </svg>
+          <span data-i18n="undo">Undo</span>
+        </button>
+        <button id="btn-redo" class="mini-action-btn" title="Redo (Ctrl+Y, 3-Finger Tap)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 14l5-5-5-5" />
+            <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13" />
+          </svg>
+          <span data-i18n="redo">Redo</span>
+        </button>
+        <button id="btn-reset-zoom" class="mini-action-btn zoom-readout" title="Reset Zoom (Ctrl+0)">100%</button>
       </div>
 
       <button id="btn-touch-lock" class="mini-action-btn touch-lock-toggle" aria-pressed="false" title="Lock finger touch drawing (Stylus-Only Mode)">
-        <span>✋</span>
+        <svg id="touch-lock-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+          <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+          <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+        </svg>
         <span data-i18n="touchLockOff">Touch Draw: ON</span>
       </button>
     </div>
 
     <!-- Orb Toggle -->
-    <button id="btn-orb-toggle" class="orb-button" aria-label="Toggle Toolbox" aria-expanded="false" title="Tap for tools • Drag to move">
+    <button id="btn-orb-toggle" class="orb-button" aria-label="Toggle Toolbox" aria-expanded="false" title="Tap for tools, drag to snap to edge">
       <span id="orb-color-ring" class="orb-color-ring"></span>
-      <span id="orb-active-icon" class="orb-active-icon">✒️</span>
+      <span id="orb-active-icon" class="orb-active-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19l7-7 3 3-7 7-3-3z" />
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+          <path d="M2 2l7.586 7.586" />
+          <circle cx="11" cy="11" r="2" />
+        </svg>
+      </span>
       <span id="orb-size-badge" class="orb-size-badge" aria-hidden="true">4</span>
-      <span id="orb-lock-badge" class="orb-lock-badge hidden" title="Stylus-Only Mode Active">🔒</span>
+      <span id="orb-lock-badge" class="orb-lock-badge hidden" title="Stylus-Only Mode Active" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="11" width="16" height="10" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+      </span>
     </button>
   </div>
 

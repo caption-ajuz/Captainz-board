@@ -80,6 +80,7 @@ export function makeDraggable(
       if (Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
       moved = true;
       clearTimeout(snapTimer);
+      el.classList.add('is-dragging');
       el.style.transition = 'none';
       try {
         target.setPointerCapture?.(e.pointerId);
@@ -95,6 +96,7 @@ export function makeDraggable(
     if (!isDragging || e.pointerId !== activePointerId) return;
     isDragging = false;
     activePointerId = null;
+    el.classList.remove('is-dragging');
 
     if (moved) {
       // Suppress the synthetic click event immediately after a drag (> DRAG_THRESHOLD)

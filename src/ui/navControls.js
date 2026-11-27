@@ -24,7 +24,11 @@ export class NavControls {
 
   update(currentIndex, totalPages) {
     this.indicator.textContent = `${currentIndex + 1} / ${totalPages}`;
-    this.btnPrev.style.opacity = currentIndex === 0 ? '0.45' : '1';
-    this.btnNext.style.opacity = currentIndex >= totalPages - 1 ? '0.45' : '1';
+    const atStart = currentIndex === 0;
+    const atEnd = currentIndex >= totalPages - 1;
+    this.btnPrev.classList.toggle('is-edge-disabled', atStart);
+    this.btnPrev.setAttribute('aria-disabled', String(atStart));
+    this.btnNext.classList.toggle('is-edge-disabled', atEnd);
+    this.btnNext.setAttribute('aria-disabled', String(atEnd));
   }
 }

@@ -166,6 +166,7 @@ const gestureManager = new GestureManager({
   },
   onTwoFingerTap: () => performUndo(true),
   onThreeFingerTap: () => performRedo(true),
+  onTransformChange: ({ scale }) => orb?.setZoom(scale),
 });
 
 // 5. Floating Circle Toolbox (Orb)

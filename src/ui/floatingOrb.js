@@ -5,20 +5,18 @@
 import { makeDraggable } from './draggable.js';
 import { t } from '../i18n/translations.js';
 
-const TOOL_ICONS = {
-  fountain: '✒️',
-  ballpoint: '🖊️',
-  calligraphy: '🖋️',
-  highlighter: '🖍️',
-  pencil: '✏️',
-  vanishing: '✨',
-  'laser-red': '🔴',
-  'laser-blue': '🔵',
-  'eraser-stroke': '🧹',
-  'eraser-pixel': '🧽',
-  lasso: '✂️',
-  shape: '⬠',
-};
+const HAND_ICON_PATHS = `
+  <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+  <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+  <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+  <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+`;
+
+const LOCK_ICON_PATHS = `
+  <rect x="4" y="11" width="16" height="10" rx="2" />
+  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  <circle cx="12" cy="16" r="1" fill="currentColor" stroke="none" />
+`;
 
 export class FloatingOrb {
   constructor({ onToolChange, onColorChange, onSizeChange, onUndo, onRedo, onResetZoom, onTouchLockToggle }) {
@@ -30,6 +28,8 @@ export class FloatingOrb {
     this.sizeBadge = document.getElementById('orb-size-badge');
     this.lockBadge = document.getElementById('orb-lock-badge');
     this.btnTouchLock = document.getElementById('btn-touch-lock');
+    this.touchLockIcon = document.getElementById('touch-lock-icon');
+    this.btnResetZoom = document.getElementById('btn-reset-zoom');
     this.slider = document.getElementById('stroke-size-slider');
     this.sizeVal = document.getElementById('stroke-size-val');
     this.sizeDot = document.getElementById('size-preview-dot');
@@ -45,6 +45,7 @@ export class FloatingOrb {
       storageKey: 'toolbox_orb',
       handleSelector: '#btn-orb-toggle',
       snapToEdge: true,
+      edgeMargin: 16,
       onDragEnd: (rect) => this._alignPanelSide(rect),
     });
 
@@ -61,6 +62,14 @@ export class FloatingOrb {
       },
       { capture: true }
     );
+
+    window.addEventListener('resize', () => {
+      if (this.isOpen) this._alignPanelSide();
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.isOpen) this.close();
+    });
 
     // Tool selection
     this.panel.querySelectorAll('.tool-btn').forEach((btn) => {
@@ -95,15 +104,17 @@ export class FloatingOrb {
 
     document.getElementById('btn-undo').addEventListener('click', () => onUndo?.());
     document.getElementById('btn-redo').addEventListener('click', () => onRedo?.());
-    document.getElementById('btn-reset-zoom').addEventListener('click', () => onResetZoom?.());
+    this.btnResetZoom.addEventListener('click', () => onResetZoom?.());
 
     this.btnTouchLock?.addEventListener('click', () => {
       this.setTouchLocked(!this.touchLocked);
       onTouchLockToggle?.(this.touchLocked);
     });
 
+    this.setTool(this.currentTool);
     this.setColor(this.currentColor);
     this.setSize(4);
+    this.setZoom(1);
     this.setTouchLocked(false);
   }
 
@@ -122,15 +133,40 @@ export class FloatingOrb {
   }
 
   _alignPanelSide(targetRect = null) {
+    const btnRect = this.btnToggle.getBoundingClientRect();
+    const orbCenterX = targetRect ? targetRect.left + targetRect.width / 2 : btnRect.left + btnRect.width / 2;
     const openRight = targetRect?.side
       ? targetRect.side === 'left'
-      : (targetRect?.left ?? this.btnToggle.getBoundingClientRect().left) < window.innerWidth * 0.45;
+      : orbCenterX < window.innerWidth * 0.5;
     this.panel.classList.toggle('open-right', openRight);
+
+    if (!this.isOpen) return;
+
+    // Keep expanded panel vertically clamped inside the viewport regardless of orb dock height
+    const margin = 14;
+    const orbCenterY = targetRect ? targetRect.top + targetRect.height / 2 : btnRect.top + btnRect.height / 2;
+    const panelHeight = this.panel.offsetHeight || 420;
+    const halfPanel = panelHeight / 2;
+    let shiftY = 0;
+
+    if (orbCenterY - halfPanel < margin) {
+      shiftY = margin - (orbCenterY - halfPanel);
+    } else if (orbCenterY + halfPanel > window.innerHeight - margin) {
+      shiftY = window.innerHeight - margin - (orbCenterY + halfPanel);
+    }
+
+    this.panel.style.setProperty('--panel-shift-y', `${Math.round(shiftY)}px`);
   }
 
   setTool(tool) {
     this.currentTool = tool;
-    this.activeIcon.textContent = TOOL_ICONS[tool] || '✒️';
+    const activeBtn =
+      this.panel.querySelector(`.tool-btn[data-tool="${tool}"]`) ||
+      this.panel.querySelector('.tool-btn[data-tool="fountain"]');
+    const iconHtml = activeBtn?.querySelector('.tool-ico')?.innerHTML;
+    if (iconHtml) {
+      this.activeIcon.innerHTML = iconHtml;
+    }
     this.panel.querySelectorAll('.tool-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.tool === tool);
     });
@@ -154,9 +190,19 @@ export class FloatingOrb {
     this.sizeDot.style.height = `${dotPx}px`;
   }
 
+  setZoom(scale = 1) {
+    if (!this.btnResetZoom) return;
+    const pct = Math.round(scale * 100);
+    this.btnResetZoom.textContent = `${pct}%`;
+    this.btnResetZoom.classList.toggle('is-zoomed', Math.abs(scale - 1) > 0.01);
+  }
+
   setTouchLocked(locked) {
     this.touchLocked = Boolean(locked);
     this.btnToggle?.classList.toggle('touch-locked', this.touchLocked);
+    if (this.touchLockIcon) {
+      this.touchLockIcon.innerHTML = this.touchLocked ? LOCK_ICON_PATHS : HAND_ICON_PATHS;
+    }
     if (this.btnTouchLock) {
       this.btnTouchLock.classList.toggle('active', this.touchLocked);
       this.btnTouchLock.setAttribute('aria-pressed', String(this.touchLocked));

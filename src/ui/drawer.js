@@ -36,6 +36,9 @@ export class SlideDrawer {
     this.btnHamburger.addEventListener('click', () => this.toggle());
     document.getElementById('btn-close-drawer').addEventListener('click', () => this.close());
     this.backdrop.addEventListener('click', () => this.close());
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.isOpen) this.close();
+    });
 
     const drawerActions = [
       ['btn-open-pdf', onOpenPdf],
@@ -132,6 +135,9 @@ export class SlideDrawer {
     pages.forEach((page, idx) => {
       const card = document.createElement('div');
       card.className = `thumb-card${idx === currentIndex ? ' active' : ''}`;
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', `Page ${idx + 1}`);
 
       if (page.thumbnail) {
         const img = document.createElement('img');
@@ -144,14 +150,22 @@ export class SlideDrawer {
 
       const badge = document.createElement('span');
       badge.className = 'thumb-badge';
-      badge.textContent = `${idx + 1}${page.type === 'pdf' ? ' • PDF' : ''}`;
+      badge.textContent = String(idx + 1);
+      if (page.type === 'pdf') {
+        const typeTag = document.createElement('span');
+        typeTag.className = 'thumb-type';
+        typeTag.textContent = 'PDF';
+        badge.appendChild(typeTag);
+      }
       card.appendChild(badge);
 
       if (pages.length > 1) {
         const del = document.createElement('button');
         del.className = 'thumb-delete';
-        del.textContent = '✕';
+        del.setAttribute('aria-label', 'Delete Page');
         del.title = 'Delete Page';
+        del.innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
         del.addEventListener('click', (e) => {
           e.stopPropagation();
           this.onDeletePage?.(idx);
@@ -159,9 +173,16 @@ export class SlideDrawer {
         card.appendChild(del);
       }
 
-      card.addEventListener('click', () => {
+      const selectCard = () => {
         this.onSelectPage?.(idx);
         this.close(); // Auto-hide drawer when tapping a slide
+      };
+      card.addEventListener('click', selectCard);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          selectCard();
+        }
       });
 
       this.thumbList.appendChild(card);
