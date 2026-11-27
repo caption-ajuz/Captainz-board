@@ -45,6 +45,7 @@ export class GestureManager {
     this.isPinching = false;
     this.pinchStart = null;
     this._tapCandidate = null;
+    this._animTimer = null;
 
     this._bindEvents();
   }
@@ -61,11 +62,25 @@ export class GestureManager {
     return this.touchLocked;
   }
 
-  resetZoom() {
-    this.scale = 1;
-    this.tx = 0;
-    this.ty = 0;
+  setViewTransform({ scale = 1, tx = 0, ty = 0 }, animate = true) {
+    clearTimeout(this._animTimer);
+    if (animate) {
+      this.transformLayer.style.transition = 'transform 240ms cubic-bezier(0.22, 1, 0.36, 1)';
+      this._animTimer = setTimeout(() => {
+        this.transformLayer.style.transition = '';
+      }, 250);
+    } else {
+      this.transformLayer.style.transition = '';
+    }
+    this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+    this.tx = tx;
+    this.ty = ty;
+    this._clampPan();
     this._applyTransform();
+  }
+
+  resetZoom(animate = true) {
+    this.setViewTransform({ scale: 1, tx: 0, ty: 0 }, animate);
   }
 
   getTransform() {
@@ -116,6 +131,8 @@ export class GestureManager {
       // Ignore UI controls overlaying the viewport
       if (e.target !== this.viewport && e.target !== this.transformLayer) return;
       if (e.button === 2) return;
+      clearTimeout(this._animTimer);
+      this.transformLayer.style.transition = '';
 
       // In Stylus-Only Mode (touchLocked), resting touch/palm never interrupts an active stylus/mouse stroke
       if (this.touchLocked && e.pointerType === 'touch' && this.drawingPointerId !== null) {
@@ -266,12 +283,24 @@ export class GestureManager {
     this.viewport.addEventListener('pointerup', handleEnd);
     this.viewport.addEventListener('pointercancel', handleEnd);
 
-    // Desktop mouse Ctrl+Wheel zoom support
+    // Desktop mouse Ctrl+Wheel zoom & regular wheel vertical/horizontal pan
     this.viewport.addEventListener(
       'wheel',
       (e) => {
-        if (!e.ctrlKey && !e.metaKey) return;
         e.preventDefault();
+        clearTimeout(this._animTimer);
+        this.transformLayer.style.transition = '';
+
+        if (!e.ctrlKey && !e.metaKey) {
+          const panX = e.shiftKey ? -e.deltaY : -e.deltaX;
+          const panY = e.shiftKey ? 0 : -e.deltaY;
+          this.tx += panX;
+          this.ty += panY;
+          this._clampPan();
+          this._applyTransform();
+          return;
+        }
+
         const factor = e.deltaY < 0 ? 1.1 : 0.9;
         const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale * factor));
         const rect = this.viewport.getBoundingClientRect();
@@ -280,10 +309,23 @@ export class GestureManager {
         this.tx = cx - ((cx - this.tx) / this.scale) * nextScale;
         this.ty = cy - ((cy - this.ty) / this.scale) * nextScale;
         this.scale = nextScale;
+        this._clampPan();
         this._applyTransform();
       },
       { passive: false }
     );
+  }
+
+  _clampPan() {
+    const rect = this.viewport.getBoundingClientRect();
+    const w = rect.width || window.innerWidth || 1920;
+    const h = rect.height || window.innerHeight || 1080;
+    const minTx = w * 0.2 - w * this.scale;
+    const maxTx = w * 0.8;
+    const minTy = h * 0.15 - h * this.scale;
+    const maxTy = h * 0.85;
+    this.tx = Math.max(minTx, Math.min(maxTx, this.tx));
+    this.ty = Math.max(minTy, Math.min(maxTy, this.ty));
   }
 
   _startPinch() {
@@ -317,6 +359,7 @@ export class GestureManager {
     this.scale = nextScale;
     this.tx = midX - worldX * nextScale;
     this.ty = midY - worldY * nextScale;
+    this._clampPan();
     this._applyTransform();
   }
 

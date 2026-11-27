@@ -9,7 +9,7 @@ import { getOptimalDpr } from '../engine/inkEngine.js';
 export class PageManager {
   constructor({ bgCanvas, onPageChanged, onPagesUpdated }) {
     this.bgCanvas = bgCanvas;
-    this.bgCtx = bgCanvas.getContext('2d', { alpha: false });
+    this.bgCtx = bgCanvas.getContext('2d', { alpha: true });
     this.onPageChanged = onPageChanged;
     this.onPagesUpdated = onPagesUpdated;
 
@@ -313,24 +313,31 @@ export class PageManager {
   }
 
   /**
-   * Renders the active page's background + PDF/Image/PPT slide onto a target 2D canvas.
+   * Renders the active page's sheet + PDF/Image/PPT slide onto a target 2D canvas
+   * and returns the sheet layout metadata for orientation-aware viewport fitting.
    */
   async renderPageBackground(page, targetCanvas = this.bgCanvas, dpr = null) {
     const effectiveDpr = dpr || Number(targetCanvas.dataset?.dpr) || getOptimalDpr();
     const isLiveCanvas = targetCanvas === this.bgCanvas;
     const seq = isLiveCanvas ? ++this._renderSeq : 0;
 
-    const ctx = targetCanvas.getContext('2d', { alpha: false });
+    const ctx = targetCanvas.getContext('2d', { alpha: true });
     const cssW = targetCanvas.width / effectiveDpr;
     const cssH = targetCanvas.height / effectiveDpr;
 
     ctx.save();
     ctx.setTransform(effectiveDpr, 0, 0, effectiveDpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
 
-    // 1. Paint board background pattern
-    this._drawBoardBackground(ctx, cssW, cssH, page.background || 'white');
+    let layout = {
+      x: 0,
+      y: 0,
+      width: cssW,
+      height: cssH,
+      isPortrait: false,
+      aspect: cssW / Math.max(1, cssH),
+    };
 
-    // 2. Render PDF page centered with capped DPR scaling
     if (page.type === 'pdf') {
       const entry = this.pdfDocs.get(page.pdfDocId);
       if (entry?.pdfDoc) {
@@ -347,22 +354,29 @@ export class PageManager {
         if (isLiveCanvas && seq !== this._renderSeq) {
           pdfPage.cleanup?.();
           ctx.restore();
-          return;
+          return null;
         }
 
         const unscaled = pdfPage.getViewport({ scale: 1 });
-        const fitScale = Math.min((cssW * 0.96) / unscaled.width, (cssH * 0.96) / unscaled.height);
+        const isPortrait = unscaled.height > unscaled.width;
+        const fillRatio = isPortrait ? 0.94 : 0.97;
+        const fitScale = Math.min((cssW * fillRatio) / unscaled.width, (cssH * fillRatio) / unscaled.height);
         const viewport = pdfPage.getViewport({ scale: fitScale });
         const offsetX = (cssW - viewport.width) / 2;
         const offsetY = (cssH - viewport.height) / 2;
 
-        // Crisp paper card backdrop
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = 'rgba(0,0,0,0.18)';
-        ctx.shadowBlur = 18;
-        ctx.fillRect(offsetX, offsetY, viewport.width, viewport.height);
-        ctx.shadowBlur = 0;
+        layout = {
+          x: offsetX,
+          y: offsetY,
+          width: viewport.width,
+          height: viewport.height,
+          isPortrait,
+          aspect: unscaled.width / Math.max(1, unscaled.height),
+        };
 
+        this._drawSheetFrame(ctx, offsetX, offsetY, viewport.width, viewport.height, '#ffffff', false);
+
+        ctx.save();
         ctx.translate(offsetX, offsetY);
         const renderTask = pdfPage.render({ canvasContext: ctx, viewport });
         if (isLiveCanvas) {
@@ -374,6 +388,7 @@ export class PageManager {
         } catch (err) {
           if (err?.name !== 'RenderingCancelledException') throw err;
         } finally {
+          ctx.restore();
           if (isLiveCanvas && this._activePdfRenderTask === renderTask) {
             this._activePdfRenderTask = null;
           }
@@ -381,16 +396,24 @@ export class PageManager {
             pdfPage.cleanup?.();
           }
         }
+        this._strokeSheetBorder(ctx, offsetX, offsetY, viewport.width, viewport.height, false);
       }
     } else if (page.type === 'image' && page.imageDataUrl) {
       await new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
           if (!isLiveCanvas || seq === this._renderSeq) {
-            const fit = Math.min((cssW * 0.92) / img.width, (cssH * 0.92) / img.height, 1.5);
+            const isPortrait = img.height > img.width;
+            const fillRatio = isPortrait ? 0.94 : 0.96;
+            const fit = Math.min((cssW * fillRatio) / img.width, (cssH * fillRatio) / img.height, 2);
             const w = img.width * fit;
             const h = img.height * fit;
-            ctx.drawImage(img, (cssW - w) / 2, (cssH - h) / 2, w, h);
+            const x = (cssW - w) / 2;
+            const y = (cssH - h) / 2;
+            layout = { x, y, width: w, height: h, isPortrait, aspect: img.width / Math.max(1, img.height) };
+            this._drawSheetFrame(ctx, x, y, w, h, '#ffffff', false);
+            ctx.drawImage(img, x, y, w, h);
+            this._strokeSheetBorder(ctx, x, y, w, h, false);
           }
           img.onload = null;
           img.onerror = null;
@@ -405,9 +428,73 @@ export class PageManager {
         img.src = page.imageDataUrl;
       });
     } else if (page.type === 'pptx-fallback' && page.slideData) {
-      await this._renderFallbackSlide(ctx, cssW, cssH, page.slideData);
+      const slideW = Math.min(cssW * 0.96, (cssH * 0.96 * 16) / 9);
+      const slideH = (slideW * 9) / 16;
+      const sx = (cssW - slideW) / 2;
+      const sy = (cssH - slideH) / 2;
+      layout = { x: sx, y: sy, width: slideW, height: slideH, isPortrait: false, aspect: 16 / 9 };
+      this._drawSheetFrame(ctx, sx, sy, slideW, slideH, '#ffffff', false);
+      ctx.save();
+      ctx.translate(sx, sy);
+      await this._renderFallbackSlide(ctx, slideW, slideH, page.slideData);
+      ctx.restore();
+      this._strokeSheetBorder(ctx, sx, sy, slideW, slideH, false);
+    } else {
+      // Blank / board sheet: framed on the live studio desk, edge-to-edge on PDF export
+      const inset = isLiveCanvas ? 16 : 0;
+      const sx = inset;
+      const sy = inset;
+      const sw = cssW - inset * 2;
+      const sh = cssH - inset * 2;
+      const bg = page.background || 'white';
+      layout = { x: sx, y: sy, width: sw, height: sh, isPortrait: false, aspect: sw / Math.max(1, sh) };
+
+      if (isLiveCanvas) {
+        this._drawSheetFrame(ctx, sx, sy, sw, sh, bg === 'blackboard' ? '#102a20' : '#ffffff', bg === 'blackboard', 10);
+        ctx.save();
+        this._roundedRectPath(ctx, sx, sy, sw, sh, 10);
+        ctx.clip();
+        ctx.translate(sx, sy);
+        this._drawBoardBackground(ctx, sw, sh, bg);
+        ctx.restore();
+        this._strokeSheetBorder(ctx, sx, sy, sw, sh, bg === 'blackboard', 10);
+      } else {
+        this._drawBoardBackground(ctx, cssW, cssH, bg);
+      }
     }
 
+    page._layout = layout;
+    ctx.restore();
+    return layout;
+  }
+
+  _roundedRectPath(ctx, x, y, w, h, r = 0) {
+    ctx.beginPath();
+    if (r > 0 && typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, w, h, r);
+    } else {
+      ctx.rect(x, y, w, h);
+    }
+  }
+
+  _drawSheetFrame(ctx, x, y, w, h, fill, isDark, radius = 4) {
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.36)' : 'rgba(15, 23, 42, 0.14)';
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 14;
+    this._roundedRectPath(ctx, x, y, w, h, radius);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  _strokeSheetBorder(ctx, x, y, w, h, isDark, radius = 4) {
+    ctx.save();
+    ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.16)' : 'rgba(15, 23, 42, 0.12)';
+    ctx.lineWidth = 1.5;
+    this._roundedRectPath(ctx, x, y, w, h, radius);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -523,7 +610,8 @@ export class PageManager {
     }
     const thumb = this._thumbCanvas;
     const ctx = thumb.getContext('2d');
-    ctx.clearRect(0, 0, thumb.width, thumb.height);
+    ctx.fillStyle = document.documentElement.dataset.theme === 'light' ? '#eef1f5' : '#0b0f17';
+    ctx.fillRect(0, 0, thumb.width, thumb.height);
     ctx.drawImage(this.bgCanvas, 0, 0, thumb.width, thumb.height);
     if (inkCanvas) {
       ctx.drawImage(inkCanvas, 0, 0, thumb.width, thumb.height);

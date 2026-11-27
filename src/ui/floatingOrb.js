@@ -191,10 +191,7 @@ export class FloatingOrb {
   }
 
   setZoom(scale = 1) {
-    if (!this.btnResetZoom) return;
-    const pct = Math.round(scale * 100);
-    this.btnResetZoom.textContent = `${pct}%`;
-    this.btnResetZoom.classList.toggle('is-zoomed', Math.abs(scale - 1) > 0.01);
+    this.setZoomDisplay({ mode: 'fit-page', isPortrait: false, scale });
   }
 
   setTouchLocked(locked) {
@@ -214,5 +211,22 @@ export class FloatingOrb {
       }
     }
     this.lockBadge?.classList.toggle('hidden', !this.touchLocked);
+  }
+
+  setZoomDisplay({ mode = 'fit-page', isPortrait = false, scale = 1 } = {}) {
+    if (!this.btnResetZoom) return;
+    const pct = `${Math.round(scale * 100)}%`;
+    this.btnResetZoom.classList.toggle('is-zoomed', Math.abs(scale - 1) > 0.02);
+    if (isPortrait) {
+      const nextKey = mode === 'fit-width' ? 'fitPage' : 'fitWidth';
+      const nextLabel = t(nextKey);
+      this.btnResetZoom.setAttribute('data-i18n', nextKey);
+      this.btnResetZoom.textContent = nextLabel;
+      this.btnResetZoom.title = `${nextLabel} (${pct}, Ctrl+0)`;
+    } else {
+      this.btnResetZoom.removeAttribute('data-i18n');
+      this.btnResetZoom.textContent = Math.abs(scale - 1) < 0.03 ? '100%' : pct;
+      this.btnResetZoom.title = `${t('fitPage')} (${pct}, Ctrl+0)`;
+    }
   }
 }

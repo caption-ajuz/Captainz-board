@@ -51,8 +51,10 @@ export async function exportSessionToPdf(pageManager, inkEngine) {
       inkEngine.drawStroke(inkOffCtx, stroke);
     }
 
-    // 3. Composite background + stamps + ink
+    // 3. Composite studio sheet + stamps + ink onto white PDF page backing
     mergedCtx.setTransform(1, 0, 0, 1, 0, 0);
+    mergedCtx.fillStyle = '#ffffff';
+    mergedCtx.fillRect(0, 0, merged.width, merged.height);
     mergedCtx.drawImage(bgOff, 0, 0);
 
     // Draw snipped stamps

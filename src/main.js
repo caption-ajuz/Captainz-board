@@ -135,9 +135,59 @@ function refreshStamps() {
 }
 
 // 4. Gesture Manager (Single-touch draw, 2-finger pinch/pan, Palm Eraser/Rejection)
+let currentLayout = null;
+let currentViewMode = 'fit-page';
+
+function getFitWidthTransform(layout) {
+  const cssW = window.innerWidth || 1920;
+  const targetW = cssW * 0.75;
+  const targetScale = Math.max(1, Math.min(3.5, targetW / Math.max(layout.width, 1)));
+  const tx = cssW / 2 - (layout.x + layout.width / 2) * targetScale;
+  const ty = 24 - layout.y * targetScale;
+  return { scale: targetScale, tx, ty };
+}
+
+function applySmartPageView(layout, { animate = false } = {}) {
+  if (!layout) return;
+  currentLayout = layout;
+  if (layout.isPortrait) {
+    currentViewMode = 'fit-width';
+    gestureManager.setViewTransform(getFitWidthTransform(layout), animate);
+  } else {
+    currentViewMode = 'fit-page';
+    gestureManager.setViewTransform({ scale: 1, tx: 0, ty: 0 }, animate);
+  }
+  orb?.setZoomDisplay({
+    mode: currentViewMode,
+    isPortrait: layout.isPortrait,
+    scale: gestureManager.getTransform().scale,
+  });
+}
+
+function toggleZoomView() {
+  if (currentLayout?.isPortrait) {
+    currentViewMode = currentViewMode === 'fit-width' ? 'fit-page' : 'fit-width';
+    const next =
+      currentViewMode === 'fit-width'
+        ? getFitWidthTransform(currentLayout)
+        : { scale: 1, tx: 0, ty: 0 };
+    gestureManager.setViewTransform(next, true);
+  } else {
+    currentViewMode = 'fit-page';
+    gestureManager.setViewTransform({ scale: 1, tx: 0, ty: 0 }, true);
+  }
+}
+
 const gestureManager = new GestureManager({
   viewport,
   transformLayer,
+  onTransformChange: ({ scale }) => {
+    orb?.setZoomDisplay({
+      mode: currentViewMode,
+      isPortrait: Boolean(currentLayout?.isPortrait),
+      scale,
+    });
+  },
   onDrawStart: (pt, overrideTool) => {
     orb.close();
     if (inkEngine.tool === 'lasso' && !overrideTool) {
@@ -179,7 +229,7 @@ const orb = new FloatingOrb({
   onSizeChange: (size) => inkEngine.setSize(size),
   onUndo: () => performUndo(false),
   onRedo: () => performRedo(false),
-  onResetZoom: () => gestureManager.resetZoom(),
+  onResetZoom: () => toggleZoomView(),
   onTouchLockToggle: (locked) => {
     gestureManager.setTouchLocked(locked);
     showToast(t(locked ? 'toastTouchLocked' : 'toastTouchUnlocked'), 1500);
@@ -302,15 +352,16 @@ pageManager = new PageManager({
   onPageChanged: async (page, idx) => {
     lassoTool.clearSelection();
     inkEngine.clearTransient();
-    gestureManager?.resetZoom();
     drawer?.setActiveBackground(page.background || 'white');
     inkEngine.setDarkBackground(page.background === 'blackboard');
 
     if (!pageManager) return;
-    await pageManager.renderPageBackground(page);
+    const layout = await pageManager.renderPageBackground(page);
+    if (!layout) return;
     inkEngine.redrawPageStrokes(page.strokes);
     refreshStamps();
     navControls?.update(idx, pageManager.getPageCount());
+    applySmartPageView(layout, { animate: false });
   },
   onPagesUpdated: () => {
     if (!pageManager) return;
@@ -325,7 +376,9 @@ applyLanguage(savedLang);
 drawer.setTheme(localStorage.getItem('captnz_theme') || 'dark');
 
 // Initial page render
-pageManager.renderPageBackground(pageManager.getCurrentPage());
+pageManager.renderPageBackground(pageManager.getCurrentPage()).then((layout) => {
+  applySmartPageView(layout, { animate: false });
+});
 navControls.update(0, pageManager.getPageCount());
 
 // Window resize handling
@@ -336,8 +389,10 @@ window.addEventListener('resize', () => {
     const dpr = resizeCanvases();
     inkEngine.setDpr(dpr);
     const page = pageManager.getCurrentPage();
-    await pageManager.renderPageBackground(page);
+    const layout = await pageManager.renderPageBackground(page);
+    if (!layout) return;
     inkEngine.redrawPageStrokes(page.strokes);
+    applySmartPageView(layout, { animate: false });
   }, 120);
 });
 
@@ -357,7 +412,7 @@ window.addEventListener('keydown', (e) => {
     performRedo(false);
   } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
     e.preventDefault();
-    gestureManager.resetZoom();
+    toggleZoomView();
   } else if (e.key.toLowerCase() === 'm' && !e.ctrlKey && !e.metaKey) {
     drawer.toggle();
   }
