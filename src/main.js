@@ -4,6 +4,7 @@
  * PageManager, FileImporter, PDFExporter, RecoveryStore, and Floating UI.
  */
 
+import './styles/main.css';
 import { applyLanguage, t } from './i18n/translations.js';
 import { getOptimalDpr, InkEngine } from './engine/inkEngine.js';
 import { GestureManager } from './engine/gestureManager.js';
