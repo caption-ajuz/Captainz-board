@@ -10,8 +10,7 @@
 
 import { maybeStraightenHighlighter, recognizeShape } from './shapeRecognizer.js';
 
-const VANISH_HOLD_MS = 2400;
-const VANISH_FADE_MS = 600; // 3.0s total visible lifetime
+const DEFAULT_VANISH_MS = 4000;
 const LASER_TAIL_MS = 260;
 const HOLD_SHAPE_MS = 450;
 const HOLD_MOVE_TOLERANCE = 9;
@@ -84,6 +83,7 @@ export class InkEngine {
     this.streamline = 0.35; // 0..1
     this.nibAngle = 38; // 30..45 degrees for Calligraphy/Fountain Nib
     this.dashStyle = 'dashed'; // 'dashed' | 'dotted'
+    this.vanishDurationMs = DEFAULT_VANISH_MS;
     this.quickShapeEnabled = true;
     this.isDarkBackground = false;
 
@@ -139,6 +139,11 @@ export class InkEngine {
 
   setDashStyle(style) {
     this.dashStyle = style === 'dotted' ? 'dotted' : 'dashed';
+  }
+
+  setVanishDuration(seconds) {
+    const sec = Math.max(1, Math.min(15, Number(seconds) || 4));
+    this.vanishDurationMs = sec * 1000;
   }
 
   setQuickShapeEnabled(enabled) {
@@ -410,6 +415,7 @@ export class InkEngine {
     // Vanishing Ink: move to fading animation queue instead of permanent page strokes
     if (stroke.tool === 'vanishing') {
       stroke.createdAt = performance.now();
+      stroke.vanishDurationMs = this.vanishDurationMs;
       this.vanishingStrokes.push(stroke);
       this._ensureAnimationLoop();
       return;
@@ -743,9 +749,17 @@ export class InkEngine {
       }
 
       this.vanishingStrokes = this.vanishingStrokes.filter((s) => {
+        const totalMs = s.vanishDurationMs || DEFAULT_VANISH_MS;
+        const fadeMs = Math.min(900, Math.max(350, totalMs * 0.35));
+        const holdMs = Math.max(200, totalMs - fadeMs);
         const age = now - s.createdAt;
-        if (age >= VANISH_HOLD_MS + VANISH_FADE_MS) return false;
-        const alpha = age <= VANISH_HOLD_MS ? 1 : 1 - (age - VANISH_HOLD_MS) / VANISH_FADE_MS;
+        if (age >= totalMs) return false;
+        let alpha = 1;
+        if (age > holdMs) {
+          const t = (age - holdMs) / fadeMs;
+          // Smooth quadratic ease-out fade curve
+          alpha = (1 - t) * (1 - t);
+        }
         this.drawStroke(this.activeCtx, s, Math.max(0, alpha));
         return true;
       });

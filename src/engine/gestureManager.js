@@ -39,10 +39,12 @@ export class GestureManager {
     this.ty = 0;
     this.palmMode = 'eraser'; // 'eraser' | 'reject'
     this.touchLocked = false; // Stylus-Only Mode: blocks finger drawing
+    this.panMode = false; // Hand / Pan tool
 
     this.activePointers = new Map();
     this.drawingPointerId = null;
     this.drawingPointerType = null;
+    this.panPointer = null;
     this.isPalmErasing = false;
     this.isPinching = false;
     this.pinchStart = null;
@@ -59,6 +61,11 @@ export class GestureManager {
 
   setTouchLocked(locked) {
     this.touchLocked = Boolean(locked);
+  }
+
+  setPanMode(enabled) {
+    this.panMode = Boolean(enabled);
+    this.viewport.style.cursor = this.panMode ? 'grab' : 'crosshair';
   }
 
   isTouchLocked() {
@@ -205,12 +212,20 @@ export class GestureManager {
       // Two-finger pinch-to-zoom & pan (or 2-finger tap Undo)
       if (this.activePointers.size === 2) {
         this._cancelActiveDraw();
+        this.panPointer = null;
         this._startPinch();
         return;
       }
 
       if (this.activePointers.size > 3) {
         if (this._tapCandidate) this._tapCandidate.cancelled = true;
+        return;
+      }
+
+      // Hand / Pan tool mode: single-pointer drag pans the board
+      if (this.panMode) {
+        this.panPointer = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY };
+        this.viewport.style.cursor = 'grabbing';
         return;
       }
 
@@ -242,6 +257,18 @@ export class GestureManager {
         return;
       }
 
+      if (this.panPointer && e.pointerId === this.panPointer.id) {
+        const dx = e.clientX - this.panPointer.lastX;
+        const dy = e.clientY - this.panPointer.lastY;
+        this.panPointer.lastX = e.clientX;
+        this.panPointer.lastY = e.clientY;
+        this.tx += dx;
+        this.ty += dy;
+        this._clampPan();
+        this._applyTransform();
+        return;
+      }
+
       if (e.pointerId !== this.drawingPointerId) return;
 
       // Zero-lag high-frequency input via getCoalescedEvents()
@@ -263,6 +290,11 @@ export class GestureManager {
         this.isPinching = false;
         this.pinchStart = null;
         this._scheduleZoomEnd(120);
+      }
+
+      if (this.panPointer && e.pointerId === this.panPointer.id) {
+        this.panPointer = null;
+        this.viewport.style.cursor = this.panMode ? 'grab' : 'crosshair';
       }
 
       if (e.pointerId === this.drawingPointerId) {

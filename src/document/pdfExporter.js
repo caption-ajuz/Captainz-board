@@ -59,6 +59,25 @@ function drawStickyNoteToCtx(ctx, st) {
   ctx.restore();
 }
 
+function drawTextBoxToCtx(ctx, st) {
+  ctx.save();
+  const fontSize = st.fontSize || 22;
+  ctx.fillStyle = st.color || '#111827';
+  ctx.font = `600 ${fontSize}px "Segoe UI", "Noto Sans Malayalam", "Rachana", "Noto Sans Arabic", sans-serif`;
+  ctx.direction = st.dir === 'rtl' ? 'rtl' : 'ltr';
+  ctx.textAlign = st.dir === 'rtl' ? 'right' : 'left';
+  const anchorX = st.dir === 'rtl' ? st.x + st.w - 10 : st.x + 10;
+  const maxW = Math.max(40, st.w - 20);
+  const lines = (st.text || '').split('\n');
+  let y = st.y + fontSize + 10;
+  for (const line of lines) {
+    ctx.fillText(line, anchorX, y, maxW);
+    y += Math.round(fontSize * 1.35);
+    if (y > st.y + st.h) break;
+  }
+  ctx.restore();
+}
+
 export async function exportSessionToPdf(pageManager, inkEngine) {
   const pages = pageManager.pages;
   if (!pages.length) return false;
@@ -138,6 +157,10 @@ export async function exportSessionToPdf(pageManager, inkEngine) {
       for (const st of page.stamps) {
         if (st.kind === 'sticky') {
           drawStickyNoteToCtx(mergedCtx, st);
+          continue;
+        }
+        if (st.kind === 'text') {
+          drawTextBoxToCtx(mergedCtx, st);
           continue;
         }
         const src = st.svgMarkup ? svgMarkupToDataUrl(st.svgMarkup) : st.dataUrl;

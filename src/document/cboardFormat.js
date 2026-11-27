@@ -126,9 +126,9 @@ export async function saveCboardProject(pageManager) {
       defaultPath: defaultName,
       filters: [{ name: 'Captnz Board Project', extensions: ['cboard'] }],
     });
-    if (!dest) return false;
+    if (!dest) return null;
     await invoke('write_file_bytes', { path: dest, bytes: Array.from(bytes) });
-    return true;
+    return { name: dest.split(/[\\/]/).pop(), path: dest, bytes };
   }
 
   const blob = new Blob([bytes], { type: 'application/octet-stream' });
@@ -140,7 +140,7 @@ export async function saveCboardProject(pageManager) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return true;
+  return { name: defaultName, path: null, bytes };
 }
 
 export async function pickAndOpenCboard(pageManager) {
@@ -153,9 +153,9 @@ export async function pickAndOpenCboard(pageManager) {
     });
     if (!selected) return null;
     const filePath = Array.isArray(selected) ? selected[0] : selected;
-    const bytes = await invoke('read_file_bytes', { path: filePath });
-    await loadCboardFromBytes(new Uint8Array(bytes), pageManager);
-    return filePath.split(/[\\/]/).pop();
+    const bytes = new Uint8Array(await invoke('read_file_bytes', { path: filePath }));
+    await loadCboardFromBytes(bytes, pageManager);
+    return { name: filePath.split(/[\\/]/).pop(), path: filePath, bytes };
   }
 
   return await new Promise((resolve, reject) => {
@@ -167,7 +167,7 @@ export async function pickAndOpenCboard(pageManager) {
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
         await loadCboardFromBytes(bytes, pageManager);
-        resolve(file.name);
+        resolve({ name: file.name, path: null, bytes });
       } catch (err) {
         reject(err);
       }

@@ -50,6 +50,11 @@ export class PeriodicTableModal {
     this.backdrop.inert = false;
     this.backdrop.setAttribute('aria-hidden', 'false');
     this.backdrop.classList.remove('hidden');
+    if (this.searchEl) {
+      this.searchEl.value = '';
+      this._filterGrid();
+      setTimeout(() => this.searchEl.focus({ preventScroll: true }), 40);
+    }
   }
 
   close() {

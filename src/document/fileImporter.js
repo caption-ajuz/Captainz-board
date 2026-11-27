@@ -30,7 +30,7 @@ export async function pickAndOpenPdf() {
     const bytes = await invoke('read_file_bytes', { path: filePath });
     const rawBytes = new Uint8Array(bytes);
     const pdfDoc = await loadPdfFromBytes(rawBytes);
-    return { pdfDoc, rawBytes, name: filePath.split(/[\\/]/).pop() };
+    return { pdfDoc, rawBytes, name: filePath.split(/[\\/]/).pop(), path: filePath };
   }
 
   return await new Promise((resolve) => {
@@ -41,7 +41,7 @@ export async function pickAndOpenPdf() {
       if (!file) return resolve(null);
       const rawBytes = new Uint8Array(await file.arrayBuffer());
       const pdfDoc = await loadPdfFromBytes(rawBytes);
-      resolve({ pdfDoc, rawBytes, name: file.name });
+      resolve({ pdfDoc, rawBytes, name: file.name, path: null });
     };
     input.click();
   });
@@ -64,12 +64,12 @@ export async function pickAndOpenPpt() {
       const pdfBytes = await invoke('convert_ppt_to_pdf', { inputPath: filePath });
       const rawBytes = new Uint8Array(pdfBytes);
       const pdfDoc = await loadPdfFromBytes(rawBytes);
-      return { mode: 'pdf', pdfDoc, rawBytes, name };
+      return { mode: 'pdf', pdfDoc, rawBytes, name, path: filePath };
     } catch {
       // 2. Fall back to built-in Rust PPTX XML + embedded media extractor
       if (filePath.toLowerCase().endsWith('.pptx')) {
         const slides = await invoke('extract_pptx_fallback', { inputPath: filePath });
-        return { mode: 'fallback', slides, name };
+        return { mode: 'fallback', slides, name, path: filePath };
       }
       throw new Error('Install LibreOffice or Microsoft PowerPoint to convert legacy .ppt files.');
     }
@@ -92,7 +92,8 @@ export async function pickAndImportImage() {
     const ext = filePath.split('.').pop().toLowerCase();
     const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
     const blob = new Blob([new Uint8Array(bytes)], { type: mime });
-    return await blobToDataUrl(blob);
+    const dataUrl = await blobToDataUrl(blob);
+    return { dataUrl, name: filePath.split(/[\\/]/).pop(), path: filePath };
   }
 
   return await new Promise((resolve) => {
@@ -101,7 +102,8 @@ export async function pickAndImportImage() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return resolve(null);
-      resolve(await blobToDataUrl(file));
+      const dataUrl = await blobToDataUrl(file);
+      resolve({ dataUrl, name: file.name, path: null });
     };
     input.click();
   });

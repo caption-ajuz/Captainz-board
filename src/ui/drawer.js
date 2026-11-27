@@ -3,6 +3,7 @@
  */
 
 import { applyLanguage, t } from '../i18n/translations.js';
+import { formatRelativeTime } from '../document/recentFiles.js';
 
 export class SlideDrawer {
   constructor({
@@ -12,6 +13,9 @@ export class SlideDrawer {
     onOpenPpt,
     onImportImage,
     onExportPdf,
+    onOpenRecent,
+    onRemoveRecent,
+    getRecentFiles,
     onBackgroundChange,
     onThemeToggle,
     onPalmToggle,
@@ -34,6 +38,13 @@ export class SlideDrawer {
     this.onDeletePage = onDeletePage;
     this.onBeforeOpen = onBeforeOpen;
     this.onRequestThumbnail = onRequestThumbnail;
+    this.onOpenRecent = onOpenRecent;
+    this.onRemoveRecent = onRemoveRecent;
+    this.getRecentFiles = getRecentFiles;
+    this.btnRecentToggle = document.getElementById('btn-toggle-recent');
+    this.recentListEl = document.getElementById('recent-files-list');
+    this.recentBadgeEl = document.getElementById('recent-count-badge');
+    this._recentOpen = false;
     this._thumbObserver = null;
     this._renderVersion = 0;
     this._thumbQueue = [];
@@ -94,6 +105,81 @@ export class SlideDrawer {
       applyLanguage(e.target.value);
       this._refreshDynamicLabels();
     });
+
+    // Collapsible Open Recent list
+    this.btnRecentToggle?.addEventListener('click', () => {
+      this._recentOpen = !this._recentOpen;
+      this.recentListEl?.classList.toggle('hidden', !this._recentOpen);
+      this.btnRecentToggle.setAttribute('aria-expanded', String(this._recentOpen));
+    });
+    this.renderRecentFiles();
+  }
+
+  renderRecentFiles() {
+    if (!this.recentListEl || !this.getRecentFiles) return;
+    const items = this.getRecentFiles() || [];
+    if (this.recentBadgeEl) {
+      this.recentBadgeEl.textContent = String(items.length);
+    }
+    this.recentListEl.innerHTML = '';
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'recent-empty';
+      empty.textContent = t('noRecentFiles');
+      this.recentListEl.appendChild(empty);
+      return;
+    }
+
+    for (const item of items) {
+      const row = document.createElement('div');
+      row.className = 'recent-item';
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+
+      const badge = document.createElement('span');
+      badge.className = `recent-type-badge type-${item.kind}`;
+      badge.textContent = (item.kind || 'file').toUpperCase();
+
+      const info = document.createElement('div');
+      info.className = 'recent-info';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'recent-name';
+      nameEl.textContent = item.name;
+      const timeEl = document.createElement('span');
+      timeEl.className = 'recent-time';
+      timeEl.textContent = formatRelativeTime(item.updatedAt);
+      info.appendChild(nameEl);
+      info.appendChild(timeEl);
+
+      const rmBtn = document.createElement('button');
+      rmBtn.type = 'button';
+      rmBtn.className = 'recent-remove-btn';
+      rmBtn.title = 'Remove';
+      rmBtn.textContent = '✕';
+      rmBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await this.onRemoveRecent?.(item.id);
+        this.renderRecentFiles();
+      });
+
+      row.appendChild(badge);
+      row.appendChild(info);
+      row.appendChild(rmBtn);
+
+      const openItem = () => {
+        this.close();
+        this.onOpenRecent?.(item);
+      };
+      row.addEventListener('click', openItem);
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openItem();
+        }
+      });
+
+      this.recentListEl.appendChild(row);
+    }
   }
 
   setTheme(theme) {
@@ -116,6 +202,7 @@ export class SlideDrawer {
 
   open() {
     this.onBeforeOpen?.();
+    this.renderRecentFiles();
     this.isOpen = true;
     this.drawer.inert = false;
     this.drawer.classList.add('open');

@@ -1,6 +1,6 @@
 /**
  * Captnz Board — Nested Draggable Floating Circle Toolbox (Orb) Controller
- * Organizes Pens | Kits (Geometry & Chemistry) | Smart (Explicit ON/OFF Toggles)
+ * Organizes Pens | Kits (Geometry & Chemistry) | Smart (Toggles & Offline OCR Packs)
  */
 
 import { makeDraggable } from './draggable.js';
@@ -10,6 +10,22 @@ import {
   CHEMISTRY_ORGANIC_STENCILS,
   LAB_APPARATUS_STENCILS,
 } from '../kits/chemistryStencils.js';
+import {
+  REACTION_CONDITIONS,
+  VSEPR_ORBITAL_STENCILS,
+  formatChemistryHtml,
+} from '../kits/chemistryKit.js';
+import { LANGUAGE_PACKS } from '../smart/smartInkEngine.js';
+
+const PERMANENT_BRUSHES = new Set([
+  'technical',
+  'calligraphy',
+  'chalk',
+  'pencil',
+  'marker',
+  'dashed',
+  'highlighter',
+]);
 
 const HAND_ICON_PATHS = `
   <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
@@ -32,6 +48,7 @@ export class FloatingOrb {
     onStreamlineChange,
     onNibAngleChange,
     onDashStyleChange,
+    onVanishFadeChange,
     onUndo,
     onRedo,
     onResetZoom,
@@ -39,9 +56,14 @@ export class FloatingOrb {
     onGeometryToggle,
     onPlaceAxes,
     onPlaceChemStencil,
+    onPlaceChemFormula,
+    onPlaceChemCondition,
     onOpenPeriodicTable,
     onSmartToggleChange,
     onAddStickyNote,
+    onDownloadOcrPack,
+    onRemoveOcrPack,
+    getOcrPackStatuses,
   }) {
     this.dock = document.getElementById('toolbox-orb-dock');
     this.btnToggle = document.getElementById('btn-orb-toggle');
@@ -62,10 +84,20 @@ export class FloatingOrb {
     this.nibAngleSlider = document.getElementById('nib-angle-slider');
     this.nibAngleVal = document.getElementById('nib-angle-val');
     this.dashStyleRow = document.getElementById('dash-style-row');
+    this.vanishFadeRow = document.getElementById('vanish-fade-row');
+    this.vanishFadeSlider = document.getElementById('vanish-fade-slider');
+    this.vanishFadeVal = document.getElementById('vanish-fade-val');
     this.customColor = document.getElementById('custom-color-input');
     this.chemGrid = document.getElementById('chem-stencil-grid');
+    this.formulaInput = document.getElementById('chem-formula-input');
+    this.formulaPreview = document.getElementById('chem-formula-preview');
+    this.ocrPacksList = document.getElementById('ocr-packs-list');
 
     this.onPlaceChemStencil = onPlaceChemStencil;
+    this.onPlaceChemCondition = onPlaceChemCondition;
+    this.onDownloadOcrPack = onDownloadOcrPack;
+    this.onRemoveOcrPack = onRemoveOcrPack;
+    this.getOcrPackStatuses = getOcrPackStatuses;
 
     this.isOpen = false;
     this.currentTool = 'calligraphy';
@@ -74,10 +106,11 @@ export class FloatingOrb {
     this.activeTab = 'pens';
     this.activeKit = 'geometry';
     this.activeChemGroup = 'organic';
+    this._packProgress = {};
 
-    // Smart toggles persisted in localStorage
     this.smartState = {
       quickShape: localStorage.getItem('captnz_smart_quickshape') !== 'false',
+      vanishSlides: localStorage.getItem('captnz_smart_vanish_slides') === 'true',
       smartInk: localStorage.getItem('captnz_smart_ink') === 'true',
       stickyGrid: localStorage.getItem('captnz_smart_sticky_grid') === 'true',
     };
@@ -121,7 +154,7 @@ export class FloatingOrb {
       btn.addEventListener('click', () => this.setKitSubtab(btn.dataset.kit));
     });
 
-    // Chemistry Group Sub-tabs (Rings & Bonds | Arrows | Lab Gear)
+    // Chemistry Group Sub-tabs (Rings | Arrows | VSEPR | Lab)
     this.panel.querySelectorAll('.chem-subtab-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.activeChemGroup = btn.dataset.chem;
@@ -132,12 +165,17 @@ export class FloatingOrb {
       });
     });
 
-    // Tool selection
+    // Quick Chemistry Formula bar & Reaction Conditions
+    this._initChemistryClassroomControls(onPlaceChemFormula);
+
+    // Tool selection with PowerPoint-style toggle-off for permanent pens -> fallback to Vanishing Pen
     this.panel.querySelectorAll('.tool-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const tool = btn.dataset.tool;
-        this.setTool(tool);
-        onToolChange?.(tool);
+        const clicked = btn.dataset.tool;
+        const nextTool =
+          clicked === this.currentTool && PERMANENT_BRUSHES.has(clicked) ? 'vanishing' : clicked;
+        this.setTool(nextTool);
+        onToolChange?.(nextTool);
       });
     });
 
@@ -185,6 +223,25 @@ export class FloatingOrb {
       onNibAngleChange?.(val);
     });
 
+    // Vanishing Fade Time slider & quick pills (1s-15s, default 4s)
+    const savedVanishSec = Number(localStorage.getItem('captnz_vanish_sec') ?? 4);
+    this.setVanishFade(savedVanishSec);
+    onVanishFadeChange?.(savedVanishSec);
+    this.vanishFadeSlider?.addEventListener('input', (e) => {
+      const sec = Number(e.target.value);
+      this.setVanishFade(sec);
+      localStorage.setItem('captnz_vanish_sec', String(sec));
+      onVanishFadeChange?.(sec);
+    });
+    this.panel.querySelectorAll('[data-vanish-sec]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sec = Number(btn.dataset.vanishSec);
+        this.setVanishFade(sec);
+        localStorage.setItem('captnz_vanish_sec', String(sec));
+        onVanishFadeChange?.(sec);
+      });
+    });
+
     // Dashed / Dotted pattern toggle
     this.panel.querySelectorAll('[data-dash]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -214,6 +271,7 @@ export class FloatingOrb {
 
     // Smart Tab ON/OFF switches
     this._bindSmartSwitch('toggle-quickshape', 'quickShape', 'captnz_smart_quickshape', onSmartToggleChange);
+    this._bindSmartSwitch('toggle-vanish-slides', 'vanishSlides', 'captnz_smart_vanish_slides', onSmartToggleChange);
     this._bindSmartSwitch('toggle-smart-ink', 'smartInk', 'captnz_smart_ink', onSmartToggleChange);
     this._bindSmartSwitch('toggle-sticky-grid', 'stickyGrid', 'captnz_smart_sticky_grid', onSmartToggleChange);
     this._syncSmartUI();
@@ -238,11 +296,116 @@ export class FloatingOrb {
     });
 
     this._renderChemGrid();
+    this.refreshOcrPacksUI();
     this.setTool(this.currentTool);
     this.setColor(this.currentColor);
     this.setSize(4);
     this.setZoom(1);
     this.setTouchLocked(false);
+  }
+
+  _initChemistryClassroomControls(onPlaceChemFormula) {
+    if (this.formulaInput && this.formulaPreview) {
+      const updatePreview = () => {
+        const val = this.formulaInput.value.trim() || 'H2SO4';
+        this.formulaPreview.innerHTML = formatChemistryHtml(val);
+      };
+      this.formulaInput.addEventListener('input', updatePreview);
+      this.formulaInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const val = this.formulaInput.value.trim() || 'H2SO4';
+          onPlaceChemFormula?.(val);
+          this.close();
+        }
+      });
+      document.getElementById('btn-place-formula')?.addEventListener('click', () => {
+        const val = this.formulaInput.value.trim() || 'H2SO4';
+        onPlaceChemFormula?.(val);
+        this.close();
+      });
+    }
+
+    const condRow = document.getElementById('chem-conditions-row');
+    if (condRow) {
+      condRow.innerHTML = '';
+      for (const cond of REACTION_CONDITIONS) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chem-cond-pill';
+        btn.textContent = cond.label;
+        btn.title = `Place condition: ${cond.label}`;
+        btn.addEventListener('click', () => {
+          this.onPlaceChemCondition?.(cond);
+          this.close();
+        });
+        condRow.appendChild(btn);
+      }
+    }
+  }
+
+  async refreshOcrPacksUI() {
+    if (!this.ocrPacksList || !this.getOcrPackStatuses) return;
+    const statuses = await this.getOcrPackStatuses();
+    this.ocrPacksList.innerHTML = '';
+
+    for (const pack of LANGUAGE_PACKS) {
+      const st = statuses[pack.code] || { installed: false };
+      const prog = this._packProgress[pack.code];
+
+      const row = document.createElement('div');
+      row.className = 'ocr-pack-row';
+
+      const meta = document.createElement('div');
+      meta.className = 'ocr-pack-meta';
+      const title = document.createElement('span');
+      title.className = 'ocr-pack-name';
+      title.textContent = `${pack.name} (${pack.native})`;
+
+      const status = document.createElement('span');
+      status.className = `ocr-pack-status${st.installed ? ' ready' : ''}`;
+      if (typeof prog === 'number') {
+        status.textContent = `${t('packDownloading')} ${prog}%`;
+      } else if (st.installed) {
+        status.textContent = `${t('packReady')} ✓`;
+      } else {
+        status.textContent = `${t('packNotInstalled')} · ${pack.sizeHint}`;
+      }
+      meta.appendChild(title);
+      meta.appendChild(status);
+
+      const actionBtn = document.createElement('button');
+      actionBtn.type = 'button';
+      actionBtn.className = `ocr-pack-btn${st.installed ? ' remove' : ''}`;
+      actionBtn.disabled = typeof prog === 'number';
+      actionBtn.textContent =
+        typeof prog === 'number' ? `${prog}%` : st.installed ? t('removePack') : t('downloadPack');
+
+      actionBtn.addEventListener('click', async () => {
+        if (st.installed) {
+          await this.onRemoveOcrPack?.(pack.code);
+          this.refreshOcrPacksUI();
+        } else {
+          this._packProgress[pack.code] = 0;
+          this.refreshOcrPacksUI();
+          try {
+            await this.onDownloadOcrPack?.(pack.code, (pct) => {
+              this._packProgress[pack.code] = pct;
+              status.textContent = `${t('packDownloading')} ${pct}%`;
+              actionBtn.textContent = `${pct}%`;
+            });
+          } finally {
+            delete this._packProgress[pack.code];
+            this.refreshOcrPacksUI();
+          }
+        }
+      });
+
+      row.appendChild(meta);
+      row.appendChild(actionBtn);
+      this.ocrPacksList.appendChild(row);
+    }
   }
 
   _bindSmartSwitch(btnId, stateKey, storageKey, onSmartToggleChange) {
@@ -264,6 +427,7 @@ export class FloatingOrb {
       el.setAttribute('aria-checked', String(Boolean(on)));
     };
     apply('toggle-quickshape', this.smartState.quickShape);
+    apply('toggle-vanish-slides', this.smartState.vanishSlides);
     apply('toggle-smart-ink', this.smartState.smartInk);
     apply('toggle-sticky-grid', this.smartState.stickyGrid);
 
@@ -291,6 +455,7 @@ export class FloatingOrb {
     this.panel.querySelectorAll('.orb-tab-pane').forEach((pane) => {
       pane.classList.toggle('hidden', pane.dataset.pane !== tab);
     });
+    if (tab === 'smart') this.refreshOcrPacksUI();
     if (this.isOpen) this._alignPanelSide();
   }
 
@@ -307,12 +472,10 @@ export class FloatingOrb {
 
   _renderChemGrid() {
     if (!this.chemGrid) return;
-    const list =
-      this.activeChemGroup === 'arrows'
-        ? CHEMISTRY_ARROW_STENCILS
-        : this.activeChemGroup === 'lab'
-          ? LAB_APPARATUS_STENCILS
-          : CHEMISTRY_ORGANIC_STENCILS;
+    let list = CHEMISTRY_ORGANIC_STENCILS;
+    if (this.activeChemGroup === 'arrows') list = CHEMISTRY_ARROW_STENCILS;
+    else if (this.activeChemGroup === 'vsepr') list = VSEPR_ORBITAL_STENCILS;
+    else if (this.activeChemGroup === 'lab') list = LAB_APPARATUS_STENCILS;
 
     this.chemGrid.innerHTML = '';
     for (const item of list) {
@@ -386,6 +549,7 @@ export class FloatingOrb {
 
     this.nibAngleRow?.classList.toggle('hidden', tool !== 'calligraphy');
     this.dashStyleRow?.classList.toggle('hidden', tool !== 'dashed');
+    this.vanishFadeRow?.classList.toggle('hidden', tool !== 'vanishing');
     if (this.isOpen) this._alignPanelSide();
   }
 
@@ -402,7 +566,7 @@ export class FloatingOrb {
     this.slider.value = String(size);
     this.sizeVal.textContent = String(size);
     if (this.sizeBadge) this.sizeBadge.textContent = String(size);
-    const dotPx = Math.max(4, Math.min(24, size));
+    const dotPx = Math.max(5, Math.min(20, Math.round(size * 0.55) + 4));
     this.sizeDot.style.width = `${dotPx}px`;
     this.sizeDot.style.height = `${dotPx}px`;
   }
@@ -415,6 +579,14 @@ export class FloatingOrb {
   setNibAngle(deg) {
     if (this.nibAngleSlider) this.nibAngleSlider.value = String(deg);
     if (this.nibAngleVal) this.nibAngleVal.textContent = `${deg}°`;
+  }
+
+  setVanishFade(sec) {
+    if (this.vanishFadeSlider) this.vanishFadeSlider.value = String(sec);
+    if (this.vanishFadeVal) this.vanishFadeVal.textContent = `${sec}s`;
+    this.panel.querySelectorAll('[data-vanish-sec]').forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.vanishSec) === sec);
+    });
   }
 
   setZoom(scale = 1) {

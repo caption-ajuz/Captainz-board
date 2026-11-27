@@ -1,19 +1,21 @@
 /**
  * Captnz Board — Main Application Bootstrap
  * Coordinates 4K DPR canvas scaling, Procreate-style InkEngine, GestureManager,
- * Geometry & Chemistry Kits, Periodic Table Modal, Smart Toggles, .cboard Projects,
- * Windows "Open with" integration, PageManager, RecoveryStore, and Floating UI.
+ * Offline Smart Ink OCR (EN/ML/AR), Quick Chemistry & Geometry Kits, .cboard Projects,
+ * Open Recent Files, Windows "Open with" integration, PageManager, and Floating UI.
  */
 
 import './styles/main.css';
-import { applyLanguage, t } from './i18n/translations.js';
+import { applyLanguage, getLanguage, t } from './i18n/translations.js';
 import { getOptimalDpr, InkEngine } from './engine/inkEngine.js';
 import { GestureManager } from './engine/gestureManager.js';
 import { LassoSnipTool } from './engine/lassoSnip.js';
 import { SmartInkRecognizer } from './engine/smartInk.js';
+import { OfflineSmartInkEngine } from './smart/smartInkEngine.js';
 import { PageManager } from './document/pageManager.js';
 import {
   isTauriRuntime,
+  loadPdfFromBytes,
   openFileFromPath,
   pickAndImportImage,
   pickAndOpenPdf,
@@ -22,13 +24,30 @@ import {
 import { loadCboardFromBytes, pickAndOpenCboard, saveCboardProject } from './document/cboardFormat.js';
 import { exportSessionToPdf } from './document/pdfExporter.js';
 import { RecoveryStore } from './document/recoveryStore.js';
+import {
+  getRecentFiles,
+  loadRecentSnapshot,
+  recordRecentFile,
+  removeRecentFile,
+} from './document/recentFiles.js';
 import { buildCoordinateAxesSvg } from './kits/chemistryStencils.js';
+import { buildChemistryFormulaSvg } from './kits/chemistryKit.js';
 import { GeometryKitManager } from './kits/geometryTools.js';
 import { createElementBadgeSvg } from './data/periodicTable.js';
 import { SlideDrawer } from './ui/drawer.js';
 import { FloatingOrb } from './ui/floatingOrb.js';
 import { NavControls } from './ui/navControls.js';
 import { PeriodicTableModal } from './ui/periodicModal.js';
+
+const PERMANENT_BRUSHES = new Set([
+  'technical',
+  'calligraphy',
+  'chalk',
+  'pencil',
+  'marker',
+  'dashed',
+  'highlighter',
+]);
 
 const viewport = document.getElementById('board-viewport');
 const transformLayer = document.getElementById('board-transform-layer');
@@ -85,8 +104,10 @@ function resizeInkCanvasesForZoom(zoomScale = 1) {
 resizeCanvases();
 
 const recoveryStore = new RecoveryStore();
+const offlineOcr = new OfflineSmartInkEngine();
 let pageManager = null;
 let orb = null;
+let drawer = null;
 
 // Offline Smart Ink local recognition hook
 const smartInk = new SmartInkRecognizer({
@@ -117,7 +138,28 @@ const inkEngine = new InkEngine({
   },
 });
 
-// 2. Lasso Snip & Interactive Stamp/Sticky-Note Layer
+function removeStrokesInsideBounds(page, bounds) {
+  if (!page?.strokes?.length) return false;
+  const before = page.strokes.length;
+  page.strokes = page.strokes.filter((s) => {
+    if (!s.points || s.points.length === 0) return true;
+    let hits = 0;
+    for (const p of s.points) {
+      if (
+        p.x >= bounds.x - 10 &&
+        p.x <= bounds.x + bounds.w + 10 &&
+        p.y >= bounds.y - 10 &&
+        p.y <= bounds.y + bounds.h + 10
+      ) {
+        hits += 1;
+      }
+    }
+    return hits / s.points.length < 0.55;
+  });
+  return page.strokes.length !== before;
+}
+
+// 2. Lasso Snip, To-Text OCR & Interactive Stamp/Sticky-Note Layer
 const lassoTool = new LassoSnipTool({
   bgCanvas,
   highlighterCanvas,
@@ -140,6 +182,50 @@ const lassoTool = new LassoSnipTool({
     refreshStamps();
     showToast(t('toastBlankInserted'));
     recoveryStore.scheduleSave(pageManager);
+  },
+  onConvertToText: async (bounds) => {
+    try {
+      showToast('Recognizing...', 1800);
+      const { text, langCode } = await offlineOcr.recognizeInkBounds(
+        inkCanvas,
+        bounds,
+        getLanguage(),
+        inkEngine.isDarkBackground
+      );
+      if (!text) {
+        showToast(t('toastOcrNoText'), 2400);
+        return;
+      }
+      const page = pageManager.getCurrentPage();
+      if (removeStrokesInsideBounds(page, bounds)) {
+        inkEngine.redrawPageStrokes(page.strokes);
+      }
+      page.stamps = page.stamps || [];
+      page.stamps.push({
+        id: `txt_${Date.now()}`,
+        kind: 'text',
+        text,
+        lang: langCode,
+        dir: langCode === 'ara' ? 'rtl' : 'ltr',
+        color: inkEngine.isDarkBackground ? '#f8fafc' : '#111827',
+        fontSize: Math.max(18, Math.min(34, Math.round(bounds.h * 0.28))),
+        x: bounds.x,
+        y: bounds.y,
+        w: Math.max(180, bounds.w + 24),
+        h: Math.max(76, bounds.h + 18),
+        rot: 0,
+      });
+      refreshStamps();
+      orb?.setSmartInkLast(`OCR (${langCode})`);
+      showToast(t('toastOcrConverted'), 1600);
+      recoveryStore.scheduleSave(pageManager);
+    } catch (err) {
+      if (err?.code === 'NO_PACK_INSTALLED' || err?.message === 'NO_PACK_INSTALLED') {
+        showToast(t('toastOcrNoPack'), 3200);
+      } else {
+        showToast(err?.message || 'Could not recognize ink', 3000);
+      }
+    }
   },
 });
 
@@ -194,7 +280,7 @@ function placeStampCentered(stamp) {
   recoveryStore.scheduleSave(pageManager);
 }
 
-// 4. Gesture Manager (Single-touch draw, 2-finger pinch/pan, 2/3-finger tap Undo/Redo, Palm Eraser)
+// 4. Gesture Manager (Single-touch draw/pan, 2-finger pinch/pan, 2/3-finger tap Undo/Redo, Palm Eraser)
 let currentLayout = null;
 let currentViewMode = 'fit-page';
 let lastRenderedZoom = 1;
@@ -320,17 +406,27 @@ const periodicModal = new PeriodicTableModal({
   },
 });
 
+function getKitStrokeColor() {
+  return inkEngine.isDarkBackground && inkEngine.color.toLowerCase() === '#111827'
+    ? '#f8fafc'
+    : inkEngine.color;
+}
+
 // 6. Nested Floating Circle Toolbox (Orb)
 orb = new FloatingOrb({
   onToolChange: (tool) => {
     lassoTool.clearSelection();
-    inkEngine.setTool(tool);
+    gestureManager.setPanMode(tool === 'hand');
+    if (tool !== 'hand') {
+      inkEngine.setTool(tool);
+    }
   },
   onColorChange: (color) => inkEngine.setColor(color),
   onSizeChange: (size) => inkEngine.setSize(size),
   onStreamlineChange: (pct) => inkEngine.setStreamline(pct),
   onNibAngleChange: (deg) => inkEngine.setNibAngle(deg),
   onDashStyleChange: (style) => inkEngine.setDashStyle(style),
+  onVanishFadeChange: (sec) => inkEngine.setVanishDuration(sec),
   onUndo: () => performUndo(false),
   onRedo: () => performRedo(false),
   onResetZoom: () => toggleZoomView(),
@@ -352,17 +448,39 @@ orb = new FloatingOrb({
     });
   },
   onPlaceChemStencil: (stencil) => {
-    const strokeColor =
-      inkEngine.isDarkBackground && inkEngine.color.toLowerCase() === '#111827'
-        ? '#f8fafc'
-        : inkEngine.color;
     placeStampCentered({
       id: `chem_${stencil.id}_${Date.now()}`,
       kind: 'svg',
       label: stencil.label,
-      svgMarkup: stencil.build(strokeColor),
+      svgMarkup: stencil.build(getKitStrokeColor()),
       w: stencil.w,
       h: stencil.h,
+      rot: 0,
+    });
+  },
+  onPlaceChemFormula: (raw) => {
+    const built = buildChemistryFormulaSvg(raw, getKitStrokeColor(), inkEngine.isDarkBackground);
+    if (!built) return;
+    placeStampCentered({
+      id: `formula_${Date.now()}`,
+      kind: 'svg',
+      label: raw,
+      svgMarkup: built.svgMarkup,
+      w: built.w,
+      h: built.h,
+      rot: 0,
+    });
+  },
+  onPlaceChemCondition: (cond) => {
+    const built = buildChemistryFormulaSvg(cond.ascii, getKitStrokeColor(), inkEngine.isDarkBackground);
+    if (!built) return;
+    placeStampCentered({
+      id: `cond_${cond.id}_${Date.now()}`,
+      kind: 'svg',
+      label: cond.label,
+      svgMarkup: built.svgMarkup,
+      w: Math.max(96, Math.round(built.w * 0.78)),
+      h: 48,
       rot: 0,
     });
   },
@@ -382,6 +500,18 @@ orb = new FloatingOrb({
       rot: 0,
     });
   },
+  onDownloadOcrPack: async (code, onProgress) => {
+    try {
+      await offlineOcr.downloadPack(code, onProgress);
+      showToast(`${code.toUpperCase()} ${t('packReady')}`, 2000);
+    } catch (err) {
+      showToast(err?.message || 'Pack download failed', 3500);
+    }
+  },
+  onRemoveOcrPack: async (code) => {
+    await offlineOcr.removePack(code);
+  },
+  getOcrPackStatuses: () => offlineOcr.getAllPackStatuses(),
 });
 
 // 7. Navigation Controls (< > +)
@@ -402,8 +532,41 @@ const navControls = new NavControls({
   },
 });
 
+async function openRecentItem(item) {
+  try {
+    if (item.path && isTauriRuntime()) {
+      await handleOpenFilePath(item.path);
+      return;
+    }
+    const snap = await loadRecentSnapshot(item.id);
+    if (!snap) {
+      showToast('Recent file snapshot is no longer cached', 2800);
+      return;
+    }
+    if (snap.kind === 'cboard' && snap.bytes) {
+      await loadCboardFromBytes(new Uint8Array(snap.bytes), pageManager);
+      showToast(`${t('toastProjectLoaded')}: ${snap.name}`);
+    } else if (snap.kind === 'pdf' && snap.bytes) {
+      const rawBytes = new Uint8Array(snap.bytes);
+      const pdfDoc = await loadPdfFromBytes(rawBytes);
+      pageManager.loadPdfDocument(`pdf_${Date.now()}`, pdfDoc, rawBytes, true);
+      showToast(`${t('toastPdfLoaded')}: ${snap.name}`);
+    } else if (snap.kind === 'image' && snap.dataUrl) {
+      pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
+      pageManager.addImagePage(snap.dataUrl);
+      showToast(`${t('toastImageAdded')}: ${snap.name}`);
+    }
+    recoveryStore.scheduleSave(pageManager);
+  } catch (err) {
+    showToast(err?.message || 'Could not reopen recent file', 3200);
+  }
+}
+
 // 8. Slide Drawer
-const drawer = new SlideDrawer({
+drawer = new SlideDrawer({
+  getRecentFiles,
+  onOpenRecent: openRecentItem,
+  onRemoveRecent: removeRecentFile,
   onBeforeOpen: () => {
     pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
     drawer.renderThumbnails(pageManager.pages, pageManager.currentIndex);
@@ -447,9 +610,11 @@ const drawer = new SlideDrawer({
   },
   onOpenCboard: async () => {
     try {
-      const name = await pickAndOpenCboard(pageManager);
-      if (!name) return;
-      showToast(`${t('toastProjectLoaded')}: ${name}`);
+      const res = await pickAndOpenCboard(pageManager);
+      if (!res) return;
+      await recordRecentFile({ name: res.name, kind: 'cboard', path: res.path, bytes: res.bytes });
+      drawer.renderRecentFiles();
+      showToast(`${t('toastProjectLoaded')}: ${res.name}`);
       recoveryStore.scheduleSave(pageManager);
     } catch (err) {
       showToast(err?.message || 'Could not open .cboard project', 3500);
@@ -457,8 +622,11 @@ const drawer = new SlideDrawer({
   },
   onSaveCboard: async () => {
     try {
-      const ok = await saveCboardProject(pageManager);
-      if (ok) showToast(t('toastProjectSaved'));
+      const res = await saveCboardProject(pageManager);
+      if (!res) return;
+      await recordRecentFile({ name: res.name, kind: 'cboard', path: res.path, bytes: res.bytes });
+      drawer.renderRecentFiles();
+      showToast(t('toastProjectSaved'));
     } catch (err) {
       showToast(err?.message || 'Could not save .cboard project', 3500);
     }
@@ -468,6 +636,8 @@ const drawer = new SlideDrawer({
       const res = await pickAndOpenPdf();
       if (!res) return;
       pageManager.loadPdfDocument(`pdf_${Date.now()}`, res.pdfDoc, res.rawBytes, true);
+      await recordRecentFile({ name: res.name, kind: 'pdf', path: res.path, bytes: res.rawBytes });
+      drawer.renderRecentFiles();
       showToast(`${t('toastPdfLoaded')}: ${res.name}`);
       recoveryStore.scheduleSave(pageManager);
     } catch (err) {
@@ -485,6 +655,8 @@ const drawer = new SlideDrawer({
         pageManager.loadFallbackPptSlides(res.slides);
         showToast(t('toastPptFallback'), 3000);
       }
+      await recordRecentFile({ name: res.name, kind: 'ppt', path: res.path });
+      drawer.renderRecentFiles();
       recoveryStore.scheduleSave(pageManager);
     } catch (err) {
       showToast(err?.message || 'Could not open presentation', 4000);
@@ -492,10 +664,12 @@ const drawer = new SlideDrawer({
   },
   onImportImage: async () => {
     try {
-      const dataUrl = await pickAndImportImage();
-      if (!dataUrl) return;
+      const res = await pickAndImportImage();
+      if (!res) return;
       pageManager.captureCurrentThumbnail(inkCanvas, highlighterCanvas, inkEngine.isDarkBackground);
-      pageManager.addImagePage(dataUrl);
+      pageManager.addImagePage(res.dataUrl);
+      await recordRecentFile({ name: res.name, kind: 'image', path: res.path, dataUrl: res.dataUrl });
+      drawer.renderRecentFiles();
       showToast(t('toastImageAdded'));
       recoveryStore.scheduleSave(pageManager);
     } catch (err) {
@@ -523,6 +697,14 @@ pageManager = new PageManager({
     const isDark = page.background === 'blackboard';
     inkEngine.setDarkBackground(isDark);
     lassoTool.setDarkBackground(isDark);
+
+    // Optional PowerPoint-style behavior: default to Vanishing Ink on PDF/PPT/Image slides
+    const isSlideOrPdf = page.type === 'pdf' || page.type === 'pptx-fallback' || page.type === 'image';
+    if (isSlideOrPdf && orb?.smartState?.vanishSlides && PERMANENT_BRUSHES.has(orb.currentTool)) {
+      orb.setTool('vanishing');
+      gestureManager.setPanMode(false);
+      inkEngine.setTool('vanishing');
+    }
 
     if (!pageManager) return;
     lastRenderedZoom = 1;
@@ -583,7 +765,12 @@ window.addEventListener('keydown', (e) => {
     performRedo(false);
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
-    saveCboardProject(pageManager).then((ok) => ok && showToast(t('toastProjectSaved')));
+    saveCboardProject(pageManager).then(async (res) => {
+      if (!res) return;
+      await recordRecentFile({ name: res.name, kind: 'cboard', path: res.path, bytes: res.bytes });
+      drawer.renderRecentFiles();
+      showToast(t('toastProjectSaved'));
+    });
   } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
     e.preventDefault();
     toggleZoomView();
@@ -592,7 +779,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// Handle files opened via Windows "Open with Captnz Board" / file association
+// Handle files opened via Windows "Open with Captnz Board" / file association / Open Recent
 async function handleOpenFilePath(filePath) {
   if (!filePath) return;
   try {
@@ -600,9 +787,11 @@ async function handleOpenFilePath(filePath) {
     if (!res) return;
     if (res.kind === 'cboard') {
       await loadCboardFromBytes(res.bytes, pageManager);
+      await recordRecentFile({ name: res.name, kind: 'cboard', path: filePath, bytes: res.bytes });
       showToast(`${t('toastProjectLoaded')}: ${res.name}`);
     } else if (res.kind === 'pdf') {
       pageManager.loadPdfDocument(`pdf_${Date.now()}`, res.pdfDoc, res.rawBytes, true);
+      await recordRecentFile({ name: res.name, kind: 'pdf', path: filePath, bytes: res.rawBytes });
       showToast(`${t('toastPdfLoaded')}: ${res.name}`);
     } else if (res.kind === 'ppt') {
       if (res.mode === 'pdf') {
@@ -612,10 +801,13 @@ async function handleOpenFilePath(filePath) {
         pageManager.loadFallbackPptSlides(res.slides);
         showToast(t('toastPptFallback'), 3000);
       }
+      await recordRecentFile({ name: res.name, kind: 'ppt', path: filePath });
     } else if (res.kind === 'image') {
       pageManager.addImagePage(res.dataUrl);
+      await recordRecentFile({ name: res.name, kind: 'image', path: filePath, dataUrl: res.dataUrl });
       showToast(`${t('toastImageAdded')}: ${res.name}`);
     }
+    drawer.renderRecentFiles();
     recoveryStore.scheduleSave(pageManager);
   } catch (err) {
     showToast(err?.message || 'Could not open file', 3800);

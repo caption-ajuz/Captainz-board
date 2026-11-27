@@ -24,6 +24,7 @@ export class LassoSnipTool {
     actionsEl,
     onPasteHere,
     onSendToNewPage,
+    onConvertToText,
   }) {
     this.bgCanvas = bgCanvas;
     this.highlighterCanvas = highlighterCanvas;
@@ -34,10 +35,12 @@ export class LassoSnipTool {
     this.actionsEl = actionsEl;
     this.onPasteHere = onPasteHere;
     this.onSendToNewPage = onSendToNewPage;
+    this.onConvertToText = onConvertToText;
     this.isDarkBackground = false;
 
     this.points = [];
     this.pendingSnip = null;
+    this.pendingBounds = null;
 
     document.getElementById('btn-lasso-move')?.addEventListener('click', () => {
       if (!this.pendingSnip) return;
@@ -51,6 +54,14 @@ export class LassoSnipTool {
       const snip = this.pendingSnip;
       this.clearSelection();
       this.onSendToNewPage?.(snip);
+    });
+
+    document.getElementById('btn-lasso-to-text')?.addEventListener('click', () => {
+      if (!this.pendingBounds) return;
+      const bounds = this.pendingBounds;
+      const polygon = this.points.slice();
+      this.clearSelection();
+      this.onConvertToText?.(bounds, polygon);
     });
 
     document.getElementById('btn-lasso-cancel')?.addEventListener('click', () => {
@@ -127,6 +138,7 @@ export class LassoSnipTool {
     cropCanvas.width = 0;
     cropCanvas.height = 0;
 
+    this.pendingBounds = { x: minX, y: minY, w, h };
     this.pendingSnip = {
       id: `snip_${Date.now()}`,
       kind: 'image',
@@ -144,6 +156,7 @@ export class LassoSnipTool {
   clearSelection() {
     this.points = [];
     this.pendingSnip = null;
+    this.pendingBounds = null;
     this.activeCtx.clearRect(0, 0, this.activeCanvas.width, this.activeCanvas.height);
     this.actionsEl.classList.add('hidden');
   }
@@ -177,6 +190,8 @@ export class LassoSnipTool {
     for (const st of stamps) {
       if (st.kind === 'sticky') {
         this._renderStickyNote(st, { getScale, getGridSnap, onChange, onDelete });
+      } else if (st.kind === 'text') {
+        this._renderTextBox(st, { getScale, getGridSnap, onChange, onDelete });
       } else {
         this._renderGraphicStamp(st, { getScale, getGridSnap, onChange, onDelete });
       }
@@ -403,6 +418,107 @@ export class LassoSnipTool {
         const snap = Boolean(getGridSnap?.());
         st.w = Math.max(150, snapVal(origW + (mv.clientX - startX) / sc, snap));
         st.h = Math.max(120, snapVal(origH + (mv.clientY - startY) / sc, snap));
+        el.style.width = `${st.w}px`;
+        el.style.height = `${st.h}px`;
+      };
+      const onUp = () => {
+        resizeHandle.removeEventListener('pointermove', onMove);
+        resizeHandle.removeEventListener('pointerup', onUp);
+        resizeHandle.removeEventListener('pointercancel', onUp);
+        onChange?.();
+      };
+      resizeHandle.addEventListener('pointermove', onMove);
+      resizeHandle.addEventListener('pointerup', onUp);
+      resizeHandle.addEventListener('pointercancel', onUp);
+    });
+
+    this.stampLayer.appendChild(el);
+  }
+
+  _renderTextBox(st, { getScale, getGridSnap, onChange, onDelete }) {
+    const el = document.createElement('div');
+    el.className = 'board-text-box';
+    el.style.left = `${st.x}px`;
+    el.style.top = `${st.y}px`;
+    el.style.width = `${st.w}px`;
+    el.style.height = `${st.h}px`;
+
+    const bar = document.createElement('div');
+    bar.className = 'text-box-bar';
+    const tag = document.createElement('span');
+    tag.className = 'text-box-tag';
+    tag.textContent = st.lang ? st.lang.toUpperCase() : 'TEXT';
+    bar.appendChild(tag);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'sticky-note-del';
+    delBtn.title = 'Delete text';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onDelete?.(st.id);
+    });
+    bar.appendChild(delBtn);
+    el.appendChild(bar);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'board-text-input';
+    textarea.dir = st.dir || 'ltr';
+    textarea.style.color = st.color || '#111827';
+    textarea.style.fontSize = `${st.fontSize || 22}px`;
+    textarea.value = st.text || '';
+    textarea.addEventListener('pointerdown', (e) => e.stopPropagation());
+    textarea.addEventListener('keydown', (e) => e.stopPropagation());
+    textarea.addEventListener('input', () => {
+      st.text = textarea.value;
+      onChange?.();
+    });
+    el.appendChild(textarea);
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'stamp-resize sticky-resize';
+    el.appendChild(resizeHandle);
+
+    bar.addEventListener('pointerdown', (e) => {
+      if (e.target === delBtn) return;
+      e.stopPropagation();
+      bar.setPointerCapture(e.pointerId);
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const ox = st.x;
+      const oy = st.y;
+      const onMove = (mv) => {
+        const sc = getScale?.() || 1;
+        const snap = Boolean(getGridSnap?.());
+        st.x = snapVal(ox + (mv.clientX - sx) / sc, snap);
+        st.y = snapVal(oy + (mv.clientY - sy) / sc, snap);
+        el.style.left = `${st.x}px`;
+        el.style.top = `${st.y}px`;
+      };
+      const onUp = () => {
+        bar.removeEventListener('pointermove', onMove);
+        bar.removeEventListener('pointerup', onUp);
+        bar.removeEventListener('pointercancel', onUp);
+        onChange?.();
+      };
+      bar.addEventListener('pointermove', onMove);
+      bar.addEventListener('pointerup', onUp);
+      bar.addEventListener('pointercancel', onUp);
+    });
+
+    resizeHandle.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      resizeHandle.setPointerCapture(e.pointerId);
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const ow = st.w;
+      const oh = st.h;
+      const onMove = (mv) => {
+        const sc = getScale?.() || 1;
+        const snap = Boolean(getGridSnap?.());
+        st.w = Math.max(140, snapVal(ow + (mv.clientX - sx) / sc, snap));
+        st.h = Math.max(64, snapVal(oh + (mv.clientY - sy) / sc, snap));
         el.style.width = `${st.w}px`;
         el.style.height = `${st.h}px`;
       };
