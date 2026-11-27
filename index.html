@@ -28,6 +28,12 @@
       <button id="btn-lasso-new-page" class="pill-btn accent" data-i18n="lassoNewPage">Snip to New Page</button>
       <button id="btn-lasso-cancel" class="pill-btn danger" data-i18n="cancel">Cancel</button>
     </div>
+
+    <!-- Floating Smart Ink Convert-to-Text Chip -->
+    <div id="smart-ink-chip" class="glass-pill smart-ink-chip hidden">
+      <button id="btn-smart-convert" class="pill-btn accent" type="button" data-i18n="convertToText">Convert to Text</button>
+      <button id="btn-smart-dismiss" class="pill-btn" type="button" aria-label="Dismiss">✕</button>
+    </div>
   </main>
 
   <!-- Menu Toggle -->
@@ -625,6 +631,13 @@
     <button id="btn-recovery-dismiss" class="pill-btn" data-i18n="dismiss">Dismiss</button>
   </div>
 
+  <!-- Android / Web Non-Blocking Update Banner -->
+  <div id="apk-update-banner" class="glass-pill floating-pill apk-update-banner hidden" role="status" aria-live="polite">
+    <span id="apk-update-text">Update available</span>
+    <a id="btn-apk-download" class="pill-btn accent" href="#" target="_blank" rel="noopener noreferrer" data-i18n="downloadApk">Download APK</a>
+    <button id="btn-apk-dismiss" class="pill-btn" type="button" data-i18n="dismiss">Dismiss</button>
+  </div>
+
   <!-- In-App Auto-Update Modal (Tauri Desktop) -->
   <div id="update-modal-backdrop" class="update-modal-backdrop hidden" aria-hidden="true" inert>
     <div id="update-modal" class="update-modal" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
@@ -669,7 +682,10 @@
 
       <!-- Tab 1: Hybrid PDF QR (Online Direct-Download or Offline Local Hotspot) -->
       <div id="share-pane-pdf" class="share-pane">
-        <div id="share-pdf-status" class="share-status-box">Generating PDF...</div>
+        <div id="share-pdf-status" class="share-status-box">
+          <div id="share-pdf-spinner" class="share-spinner"></div>
+          <span id="share-pdf-status-text">Creating shareable QR code...</span>
+        </div>
         <div id="share-pdf-qr-wrap" class="share-qr-wrap hidden">
           <div class="share-qr-frame">
             <img id="share-pdf-qr-img" class="share-qr-img" alt="Board PDF QR Code" />

@@ -38,6 +38,21 @@ async function uploadToTmpfiles(blob, fileName, signal) {
   return direct;
 }
 
+async function uploadToFileIo(blob, fileName, signal) {
+  const form = new FormData();
+  form.append('file', blob, fileName);
+  form.append('expires', '1h');
+  const res = await fetch('https://file.io', {
+    method: 'POST',
+    body: form,
+    signal,
+  });
+  if (!res.ok) throw new Error('file.io unavailable');
+  const data = await res.json();
+  if (!data?.success || !data?.link) throw new Error('file.io invalid response');
+  return String(data.link).trim();
+}
+
 async function uploadTo0x0(blob, fileName, signal) {
   const form = new FormData();
   form.append('file', blob, fileName);
@@ -47,21 +62,25 @@ async function uploadTo0x0(blob, fileName, signal) {
     body: form,
     signal,
   });
-  if (!res.ok) throw new Error(`0x0.st HTTP ${res.status}`);
+  if (!res.ok) throw new Error('0x0.st unavailable');
   const text = (await res.text()).trim();
-  if (!text.startsWith('http')) throw new Error('0x0.st returned invalid URL');
+  if (!text.startsWith('http')) throw new Error('0x0.st invalid response');
   return text;
 }
 
 async function uploadPdfWithFallback(bytes, fileName) {
   const blob = new Blob([bytes], { type: 'application/pdf' });
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 16000);
+  const timer = setTimeout(() => controller.abort(), 10000);
   try {
     try {
       return await uploadToTmpfiles(blob, fileName, controller.signal);
     } catch {
-      return await uploadTo0x0(blob, fileName, controller.signal);
+      try {
+        return await uploadToFileIo(blob, fileName, controller.signal);
+      } catch {
+        return await uploadTo0x0(blob, fileName, controller.signal);
+      }
     }
   } finally {
     clearTimeout(timer);
@@ -114,6 +133,8 @@ export class ShareModal {
 
     this.modeBadge = document.getElementById('share-mode-badge');
     this.statusEl = document.getElementById('share-pdf-status');
+    this.statusSpinnerEl = document.getElementById('share-pdf-spinner');
+    this.statusTextEl = document.getElementById('share-pdf-status-text');
     this.qrWrap = document.getElementById('share-pdf-qr-wrap');
     this.qrImg = document.getElementById('share-pdf-qr-img');
     this.urlEl = document.getElementById('share-pdf-url');
@@ -226,14 +247,24 @@ export class ShareModal {
     return this._cachedPdf;
   }
 
+  _setStatus(message, loading = false) {
+    if (!this.statusEl) return;
+    this.statusEl.classList.remove('hidden');
+    if (this.statusSpinnerEl) {
+      this.statusSpinnerEl.classList.toggle('hidden', !loading);
+    }
+    if (this.statusTextEl) {
+      this.statusTextEl.textContent = message;
+    } else {
+      this.statusEl.textContent = message;
+    }
+  }
+
   async _preparePdfQr() {
     await this._stopLocalServer();
 
     if (this.qrWrap) this.qrWrap.classList.add('hidden');
-    if (this.statusEl) {
-      this.statusEl.classList.remove('hidden');
-      this.statusEl.textContent = t('shareGeneratingPdf');
-    }
+    this._setStatus(t('shareCreatingQr'), true);
     if (this.btnToggleHotspot) {
       this.btnToggleHotspot.classList.toggle('hidden', !isTauriRuntime());
     }
@@ -249,7 +280,7 @@ export class ShareModal {
           this.modeBadge.textContent = t('shareModeOnline');
           this.modeBadge.dataset.mode = 'online';
         }
-        if (this.statusEl) this.statusEl.textContent = t('shareUploading');
+        this._setStatus(t('shareCreatingQr'), true);
         if (this.btnToggleHotspot) {
           this.btnToggleHotspot.textContent = t('shareSwitchHotspot');
         }
@@ -264,15 +295,7 @@ export class ShareModal {
           this.qrWrap?.classList.remove('hidden');
           return;
         } catch {
-          // Fall through to offline hotspot if on Tauri, or show offline notice
-          if (!isTauriRuntime()) {
-            if (this.modeBadge) {
-              this.modeBadge.textContent = t('shareModeOffline');
-              this.modeBadge.dataset.mode = 'offline';
-            }
-            if (this.statusEl) this.statusEl.textContent = t('shareWebOfflineNotice');
-            return;
-          }
+          // Smoothly fall back to offline hotspot / zero-connection options
         }
       }
 
@@ -307,12 +330,14 @@ export class ShareModal {
           this.modeBadge.textContent = t('shareModeOffline');
           this.modeBadge.dataset.mode = 'offline';
         }
-        if (this.statusEl) this.statusEl.textContent = t('shareWebOfflineNotice');
+        this._setStatus(t('shareWebOfflineNotice'), false);
       }
-    } catch (err) {
-      if (this.statusEl) {
-        this.statusEl.textContent = err?.message || 'Could not prepare Share QR';
+    } catch {
+      if (this.modeBadge) {
+        this.modeBadge.textContent = t('shareModeOffline');
+        this.modeBadge.dataset.mode = 'offline';
       }
+      this._setStatus(t('shareWebOfflineNotice'), false);
     }
   }
 

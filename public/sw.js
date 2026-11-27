@@ -11,6 +11,7 @@ const APP_SHELL_URLS = [
   './tesseract/worker.min.js',
   './tesseract/tesseract-core-lstm.wasm.js',
   './tesseract/tesseract-core-simd-lstm.wasm.js',
+  './tesseract/eng.traineddata.gz',
 ];
 
 self.addEventListener('install', (event) => {

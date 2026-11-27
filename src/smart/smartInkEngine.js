@@ -86,6 +86,31 @@ export class OfflineSmartInkEngine {
   constructor() {
     this._worker = null;
     this._workerLang = null;
+    this._bundledEngData = null;
+  }
+
+  async _loadBundledEngData() {
+    if (this._bundledEngData) return this._bundledEngData;
+    const url = new URL('./tesseract/eng.traineddata.gz', window.location.href).href;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      throw new Error('Built-in English OCR pack could not be loaded.');
+    }
+    const gzBytes = new Uint8Array(await resp.arrayBuffer());
+    const rawData = await gunzipUint8(gzBytes);
+    this._bundledEngData = rawData;
+    // Best-effort persist to IndexedDB for instant subsequent loads
+    try {
+      await putStoredPack({
+        code: 'eng',
+        data: rawData,
+        sizeBytes: rawData.byteLength,
+        downloadedAt: Date.now(),
+      });
+    } catch {
+      // Non-fatal if IndexedDB is unavailable
+    }
+    return rawData;
   }
 
   async getAllPackStatuses() {
@@ -93,15 +118,22 @@ export class OfflineSmartInkEngine {
     for (const pack of LANGUAGE_PACKS) {
       try {
         const rec = await getStoredPack(pack.code);
-        results[pack.code] = rec ? { installed: true, sizeBytes: rec.sizeBytes } : { installed: false };
+        if (rec) {
+          results[pack.code] = { installed: true, sizeBytes: rec.sizeBytes };
+        } else if (pack.code === 'eng') {
+          results[pack.code] = { installed: true, bundled: true };
+        } else {
+          results[pack.code] = { installed: false };
+        }
       } catch {
-        results[pack.code] = { installed: false };
+        results[pack.code] = pack.code === 'eng' ? { installed: true, bundled: true } : { installed: false };
       }
     }
     return results;
   }
 
   async isPackInstalled(code) {
+    if (code === 'eng') return true;
     try {
       const rec = await getStoredPack(code);
       return Boolean(rec && rec.data);
@@ -181,6 +213,19 @@ export class OfflineSmartInkEngine {
     for (const p of LANGUAGE_PACKS) {
       if (await this.isPackInstalled(p.code)) return p.code;
     }
+    return 'eng';
+  }
+
+  async _getPackBytes(langCode) {
+    try {
+      const rec = await getStoredPack(langCode);
+      if (rec?.data) return rec.data;
+    } catch {
+      // Fall through to bundled English check
+    }
+    if (langCode === 'eng') {
+      return await this._loadBundledEngData();
+    }
     return null;
   }
 
@@ -189,14 +234,8 @@ export class OfflineSmartInkEngine {
    */
   async recognizeInkBounds(inkCanvas, bounds, uiLang = 'en', isDarkBg = false) {
     const langCode = await this.resolvePreferredInstalledLang(uiLang);
-    if (!langCode) {
-      const err = new Error('NO_PACK_INSTALLED');
-      err.code = 'NO_PACK_INSTALLED';
-      throw err;
-    }
-
-    const pack = await getStoredPack(langCode);
-    if (!pack?.data) {
+    const packData = await this._getPackBytes(langCode);
+    if (!packData) {
       const err = new Error('NO_PACK_INSTALLED');
       err.code = 'NO_PACK_INSTALLED';
       throw err;
@@ -233,14 +272,14 @@ export class OfflineSmartInkEngine {
     );
     ctx.restore();
 
-    const text = await this.recognizeCanvas(crop, langCode, pack.data);
+    const text = await this.recognizeCanvas(crop, langCode, packData);
     crop.width = 0;
     crop.height = 0;
     return { text: text.trim(), langCode };
   }
 
   async recognizeCanvas(canvas, langCode, cachedData = null) {
-    const packData = cachedData || (await getStoredPack(langCode))?.data;
+    const packData = cachedData || (await this._getPackBytes(langCode));
     if (!packData) {
       const err = new Error('NO_PACK_INSTALLED');
       err.code = 'NO_PACK_INSTALLED';

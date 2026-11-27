@@ -2609,8 +2609,11 @@ input:focus-visible,
 .share-status-box {
   width: 100%;
   min-height: 180px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   text-align: center;
   padding: 18px;
   border-radius: var(--radius-md);
@@ -2618,6 +2621,46 @@ input:focus-visible,
   color: var(--text-muted);
   font-size: 13.5px;
   font-weight: 500;
+}
+
+.share-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--orb-divider);
+  border-top-color: var(--accent);
+  animation: shareSpin 0.8s linear infinite;
+}
+
+@keyframes shareSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.smart-ink-chip {
+  position: fixed;
+  z-index: 45;
+  padding: 5px;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+
+.smart-ink-chip .pill-btn {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
+.apk-update-banner {
+  z-index: 65;
+  text-decoration: none;
+}
+
+.apk-update-banner a.pill-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
 .share-qr-wrap {

@@ -110,7 +110,129 @@ let pageManager = null;
 let orb = null;
 let drawer = null;
 
-// Offline Smart Ink local recognition hook
+const APP_VERSION = '1.0.2';
+
+// Offline Smart Ink local recognition hook + floating Convert-to-Text chip
+const smartInkChipEl = document.getElementById('smart-ink-chip');
+const btnSmartConvert = document.getElementById('btn-smart-convert');
+const btnSmartDismiss = document.getElementById('btn-smart-dismiss');
+let pendingSmartInk = null;
+
+function hideSmartInkChip() {
+  if (pendingSmartInk?.timer) clearTimeout(pendingSmartInk.timer);
+  pendingSmartInk = null;
+  smartInkChipEl?.classList.add('hidden');
+}
+
+function positionAndShowSmartInkChip(bounds) {
+  if (!smartInkChipEl || !bounds) return;
+  const cx = Math.max(110, Math.min(window.innerWidth - 110, (bounds.minX + bounds.maxX) / 2));
+  const preferBelow = bounds.maxY + 56 < window.innerHeight - 24;
+  const top = preferBelow
+    ? bounds.maxY + 12
+    : Math.max(16, bounds.minY - 52);
+  smartInkChipEl.style.left = `${Math.round(cx)}px`;
+  smartInkChipEl.style.top = `${Math.round(top)}px`;
+  smartInkChipEl.classList.remove('hidden');
+}
+
+function queueSmartInkChipForStroke(stroke) {
+  if (!smartInk.enabled || !stroke?.points?.length || stroke.shape) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of stroke.points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!Number.isFinite(minX)) return;
+
+  if (!pendingSmartInk) {
+    pendingSmartInk = {
+      strokeIds: new Set(),
+      bounds: { minX, minY, maxX, maxY },
+      timer: null,
+    };
+  } else {
+    pendingSmartInk.bounds.minX = Math.min(pendingSmartInk.bounds.minX, minX);
+    pendingSmartInk.bounds.minY = Math.min(pendingSmartInk.bounds.minY, minY);
+    pendingSmartInk.bounds.maxX = Math.max(pendingSmartInk.bounds.maxX, maxX);
+    pendingSmartInk.bounds.maxY = Math.max(pendingSmartInk.bounds.maxY, maxY);
+  }
+  if (stroke.id) pendingSmartInk.strokeIds.add(stroke.id);
+
+  if (pendingSmartInk.timer) clearTimeout(pendingSmartInk.timer);
+  smartInkChipEl?.classList.add('hidden');
+  pendingSmartInk.timer = setTimeout(() => {
+    if (pendingSmartInk && smartInk.enabled) {
+      positionAndShowSmartInkChip(pendingSmartInk.bounds);
+    }
+  }, 550);
+}
+
+btnSmartDismiss?.addEventListener('click', () => hideSmartInkChip());
+
+btnSmartConvert?.addEventListener('click', async () => {
+  if (!pendingSmartInk) return;
+  const target = pendingSmartInk;
+  const bounds = {
+    x: Math.max(0, target.bounds.minX - 8),
+    y: Math.max(0, target.bounds.minY - 8),
+    w: Math.max(32, target.bounds.maxX - target.bounds.minX + 16),
+    h: Math.max(32, target.bounds.maxY - target.bounds.minY + 16),
+  };
+
+  btnSmartConvert.disabled = true;
+  btnSmartConvert.textContent = t('convertingText');
+  try {
+    const { text, langCode } = await offlineOcr.recognizeInkBounds(
+      inkCanvas,
+      bounds,
+      getLanguage(),
+      inkEngine.isDarkBackground
+    );
+    if (!text) {
+      showToast(t('toastOcrNoText'), 2400);
+      hideSmartInkChip();
+      return;
+    }
+
+    const page = pageManager.getCurrentPage();
+    if (target.strokeIds.size > 0 && page?.strokes?.length) {
+      page.strokes = page.strokes.filter((s) => !target.strokeIds.has(s.id));
+    } else {
+      removeStrokesInsideBounds(page, bounds);
+    }
+    inkEngine.redrawPageStrokes(page.strokes);
+
+    page.stamps = page.stamps || [];
+    page.stamps.push({
+      id: `txt_${Date.now()}`,
+      kind: 'text',
+      text,
+      lang: langCode,
+      dir: langCode === 'ara' ? 'rtl' : 'ltr',
+      color: inkEngine.isDarkBackground ? '#f8fafc' : '#111827',
+      fontSize: Math.max(18, Math.min(34, Math.round(bounds.h * 0.28))),
+      x: bounds.x,
+      y: bounds.y,
+      w: Math.max(180, bounds.w + 24),
+      h: Math.max(76, bounds.h + 18),
+      rot: 0,
+    });
+    refreshStamps();
+    orb?.setSmartInkLast(`OCR (${langCode})`);
+    showToast(t('toastOcrConverted'), 1600);
+    recoveryStore.scheduleSave(pageManager);
+    hideSmartInkChip();
+  } catch (err) {
+    showToast(err?.message || 'Could not recognize ink', 3000);
+  } finally {
+    btnSmartConvert.disabled = false;
+    btnSmartConvert.textContent = t('convertToText');
+  }
+});
+
 const smartInk = new SmartInkRecognizer({
   onRecognized: (res) => {
     orb?.setSmartInkLast(`${res.label} (${Math.round(res.confidence * 100)}%)`);
@@ -124,7 +246,10 @@ const inkEngine = new InkEngine({
   activeCanvas,
   onStrokeCommitted: (stroke) => {
     pageManager.addStroke(stroke);
-    smartInk.analyzeStroke(stroke);
+    const res = smartInk.analyzeStroke(stroke);
+    if (res) {
+      queueSmartInkChipForStroke(stroke);
+    }
     recoveryStore.scheduleSave(pageManager);
   },
   onStrokeErased: (pt, radius) => {
@@ -489,6 +614,7 @@ orb = new FloatingOrb({
   onSmartToggleChange: (state) => {
     inkEngine.setQuickShapeEnabled(state.quickShape);
     smartInk.setEnabled(state.smartInk);
+    if (!state.smartInk) hideSmartInkChip();
   },
   onAddStickyNote: (color) => {
     placeStampCentered({
@@ -599,6 +725,7 @@ drawer = new SlideDrawer({
   },
   onPalmToggle: (mode) => gestureManager.setPalmMode(mode),
   onClearPage: () => {
+    hideSmartInkChip();
     pageManager.clearCurrentPageInk();
     inkEngine.redrawPageStrokes([]);
     refreshStamps();
@@ -721,6 +848,7 @@ const shareModal = new ShareModal({
 pageManager = new PageManager({
   bgCanvas,
   onPageChanged: async (page, idx) => {
+    hideSmartInkChip();
     lassoTool.clearSelection();
     inkEngine.clearTransient();
     drawer?.setActiveBackground(page.background || 'white');
@@ -961,8 +1089,66 @@ async function initAutoUpdater() {
   }
 }
 
+function compareSemver(a, b) {
+  const pa = String(a || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+async function initWebApkUpdateCheck() {
+  if (isTauriRuntime() || !navigator.onLine) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const resp = await fetch(
+      'https://api.github.com/repos/caption-ajuz/Captainz-board/releases/latest',
+      {
+        headers: { Accept: 'application/vnd.github+json' },
+        signal: controller.signal,
+      }
+    );
+    if (!resp.ok) return;
+    const release = await resp.json();
+    const rawTag = String(release?.tag_name || '').trim();
+    const latestVersion = rawTag.replace(/^v/i, '');
+    if (!latestVersion || compareSemver(latestVersion, APP_VERSION) <= 0) return;
+    if (sessionStorage.getItem('captnz_dismissed_apk_ver') === latestVersion) return;
+
+    const apkAsset = (release.assets || []).find((a) =>
+      String(a?.name || '').toLowerCase().endsWith('.apk')
+    );
+    const downloadUrl = apkAsset?.browser_download_url || release?.html_url;
+    if (!downloadUrl) return;
+
+    const banner = document.getElementById('apk-update-banner');
+    const textEl = document.getElementById('apk-update-text');
+    const linkEl = document.getElementById('btn-apk-download');
+    const dismissEl = document.getElementById('btn-apk-dismiss');
+    if (!banner || !textEl || !linkEl || !dismissEl) return;
+
+    textEl.textContent = `Update v${latestVersion} available`;
+    linkEl.href = downloadUrl;
+    banner.classList.remove('hidden');
+
+    dismissEl.onclick = () => {
+      banner.classList.add('hidden');
+      sessionStorage.setItem('captnz_dismissed_apk_ver', latestVersion);
+    };
+  } catch {
+    // Non-blocking: ignore offline/rate-limit errors
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 setTimeout(() => {
   initAutoUpdater();
+  initWebApkUpdateCheck();
 }, 1500);
 
 // ==================== Offline PWA Service Worker & File Handlers ====================
