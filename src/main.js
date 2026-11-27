@@ -52,6 +52,7 @@ function resizeCanvases() {
 resizeCanvases();
 
 const recoveryStore = new RecoveryStore();
+let pageManager = null;
 
 // 1. Ink Engine
 const inkEngine = new InkEngine({
@@ -98,26 +99,7 @@ const lassoTool = new LassoSnipTool({
   },
 });
 
-// 3. Page Manager
-const pageManager = new PageManager({
-  bgCanvas,
-  onPageChanged: async (page, idx) => {
-    lassoTool.clearSelection();
-    inkEngine.clearTransient();
-    gestureManager?.resetZoom();
-    drawer?.setActiveBackground(page.background || 'white');
-    inkEngine.setDarkBackground(page.background === 'blackboard');
-
-    await pageManager.renderPageBackground(page);
-    inkEngine.redrawPageStrokes(page.strokes);
-    refreshStamps();
-    navControls?.update(idx, pageManager.getPageCount());
-  },
-  onPagesUpdated: () => {
-    navControls?.update(pageManager.currentIndex, pageManager.getPageCount());
-  },
-});
-
+// 3. Session Helpers
 function performUndo(announce = false) {
   if (pageManager.undo()) {
     inkEngine.redrawPageStrokes(pageManager.getCurrentPage().strokes);
@@ -309,6 +291,28 @@ const drawer = new SlideDrawer({
     } catch (err) {
       showToast(err?.message || 'Export failed', 3500);
     }
+  },
+});
+
+// 8. Page Manager (initialized after UI controllers referenced in its callbacks)
+pageManager = new PageManager({
+  bgCanvas,
+  onPageChanged: async (page, idx) => {
+    lassoTool.clearSelection();
+    inkEngine.clearTransient();
+    gestureManager?.resetZoom();
+    drawer?.setActiveBackground(page.background || 'white');
+    inkEngine.setDarkBackground(page.background === 'blackboard');
+
+    if (!pageManager) return;
+    await pageManager.renderPageBackground(page);
+    inkEngine.redrawPageStrokes(page.strokes);
+    refreshStamps();
+    navControls?.update(idx, pageManager.getPageCount());
+  },
+  onPagesUpdated: () => {
+    if (!pageManager) return;
+    navControls?.update(pageManager.currentIndex, pageManager.getPageCount());
   },
 });
 
