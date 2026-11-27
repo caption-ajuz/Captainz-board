@@ -20,11 +20,12 @@ const MAX_CANVAS_PIXELS = 3840 * 2160; // Cap backing buffers to 4K UHD pixel bu
  * Computes a capped devicePixelRatio so 4K/5K smart boards stay crisp
  * without allocating excessive multi-hundred-megabyte canvas buffers.
  */
-export function getOptimalDpr(cssW = window.innerWidth, cssH = window.innerHeight) {
+export function getOptimalDpr(cssW = window.innerWidth, cssH = window.innerHeight, zoomScale = 1) {
   const rawDpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
   const area = Math.max(1, cssW * cssH);
   const budgetDpr = Math.sqrt(MAX_CANVAS_PIXELS / area);
-  return Math.max(1, Math.min(rawDpr, MAX_DPR, budgetDpr));
+  const desired = Math.max(rawDpr, Math.min(MAX_DPR, Math.max(1, zoomScale)));
+  return Math.max(1, Math.min(desired, MAX_DPR, budgetDpr));
 }
 
 export class InkEngine {

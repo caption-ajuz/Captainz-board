@@ -10,7 +10,7 @@ import { getOptimalDpr, InkEngine } from './engine/inkEngine.js';
 import { GestureManager } from './engine/gestureManager.js';
 import { LassoSnipTool } from './engine/lassoSnip.js';
 import { PageManager } from './document/pageManager.js';
-import { pickAndImportImage, pickAndOpenPdf, pickAndOpenPpt } from './document/fileImporter.js';
+import { pickAndImportImage, pickAndOpenPdf, pickAndOpenPpt, isTauriRuntime } from './document/fileImporter.js';
 import { exportSessionToPdf } from './document/pdfExporter.js';
 import { RecoveryStore } from './document/recoveryStore.js';
 import { SlideDrawer } from './ui/drawer.js';
@@ -34,10 +34,10 @@ function showToast(msg, duration = 2200) {
 }
 
 // High-DPI 4K canvas sizing (capped to 4K pixel budget to prevent RAM bloat)
-function resizeCanvases() {
+function resizeCanvases(zoomScale = 1) {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const dpr = getOptimalDpr(w, h);
+  const dpr = getOptimalDpr(w, h, zoomScale);
   for (const c of [bgCanvas, inkCanvas, activeCanvas]) {
     c.width = Math.round(w * dpr);
     c.height = Math.round(h * dpr);
@@ -48,6 +48,23 @@ function resizeCanvases() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   return dpr;
+}
+
+function resizeInkCanvasesForZoom(zoomScale = 1) {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const nextDpr = getOptimalDpr(w, h, zoomScale);
+  const prevDpr = Number(inkCanvas.dataset?.dpr) || 1;
+  if (Math.abs(nextDpr - prevDpr) < 0.08) return false;
+  for (const c of [inkCanvas, activeCanvas]) {
+    c.width = Math.round(w * nextDpr);
+    c.height = Math.round(h * nextDpr);
+    c.dataset.dpr = String(nextDpr);
+    c.style.width = `${w}px`;
+    c.style.height = `${h}px`;
+  }
+  inkEngine.setDpr(nextDpr);
+  return true;
 }
 
 resizeCanvases();
@@ -137,6 +154,7 @@ function refreshStamps() {
 // 4. Gesture Manager (Single-touch draw, 2-finger pinch/pan, Palm Eraser/Rejection)
 let currentLayout = null;
 let currentViewMode = 'fit-page';
+let lastRenderedZoom = 1;
 
 function getFitWidthTransform(layout) {
   const cssW = window.innerWidth || 1920;
@@ -187,6 +205,17 @@ const gestureManager = new GestureManager({
       isPortrait: Boolean(currentLayout?.isPortrait),
       scale,
     });
+  },
+  onZoomEnd: async ({ scale }) => {
+    const page = pageManager?.getCurrentPage();
+    if (!page) return;
+    if (resizeInkCanvasesForZoom(scale)) {
+      inkEngine.redrawPageStrokes(page.strokes);
+    }
+    if (page.type === 'pdf' && Math.abs(scale - lastRenderedZoom) > 0.12) {
+      lastRenderedZoom = scale;
+      await pageManager.renderPageBackground(page, bgCanvas, null, scale);
+    }
   },
   onDrawStart: (pt, overrideTool) => {
     orb.close();
@@ -260,6 +289,7 @@ const drawer = new SlideDrawer({
     pageManager.captureCurrentThumbnail(inkCanvas);
     drawer.renderThumbnails(pageManager.pages, pageManager.currentIndex);
   },
+  onRequestThumbnail: (page) => pageManager.renderThumbnailForPage(page),
   onSelectPage: (idx) => {
     pageManager.captureCurrentThumbnail(inkCanvas);
     pageManager.goToPage(idx);
@@ -356,7 +386,8 @@ pageManager = new PageManager({
     inkEngine.setDarkBackground(page.background === 'blackboard');
 
     if (!pageManager) return;
-    const layout = await pageManager.renderPageBackground(page);
+    lastRenderedZoom = 1;
+    const layout = await pageManager.renderPageBackground(page, bgCanvas, null, 1);
     if (!layout) return;
     inkEngine.redrawPageStrokes(page.strokes);
     refreshStamps();
@@ -436,3 +467,81 @@ window.addEventListener('keydown', (e) => {
     await recoveryStore.clear();
   });
 })();
+
+// Silent startup auto-update check in Tauri desktop builds
+async function initAutoUpdater() {
+  if (!isTauriRuntime()) return;
+  try {
+    const { check } = await import('@tauri-apps/plugin-updater');
+    const update = await check();
+    if (!update?.available) return;
+
+    const backdrop = document.getElementById('update-modal-backdrop');
+    const badge = document.getElementById('update-version-badge');
+    const notes = document.getElementById('update-modal-notes');
+    const progressWrap = document.getElementById('update-progress-wrap');
+    const progressBar = document.getElementById('update-progress-bar');
+    const progressText = document.getElementById('update-progress-text');
+    const btnDismiss = document.getElementById('btn-update-dismiss');
+    const btnInstall = document.getElementById('btn-update-install');
+    if (!backdrop || !btnInstall || !btnDismiss) return;
+
+    badge.textContent = `v${update.version}`;
+    if (update.body?.trim()) {
+      notes.textContent = update.body.trim();
+    }
+
+    const closeUpdateModal = () => {
+      if (backdrop.contains(document.activeElement)) {
+        document.activeElement?.blur?.();
+      }
+      backdrop.classList.add('hidden');
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.inert = true;
+    };
+
+    backdrop.inert = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+    backdrop.classList.remove('hidden');
+
+    btnDismiss.onclick = closeUpdateModal;
+    btnInstall.onclick = async () => {
+      btnInstall.disabled = true;
+      btnDismiss.disabled = true;
+      progressWrap.classList.remove('hidden');
+      let downloaded = 0;
+      let contentLength = 0;
+
+      try {
+        await update.downloadAndInstall((event) => {
+          if (event.event === 'Started') {
+            contentLength = event.data.contentLength || 0;
+            progressText.textContent = t('updateDownloading');
+          } else if (event.event === 'Progress') {
+            downloaded += event.data.chunkLength || 0;
+            if (contentLength > 0) {
+              const pct = Math.min(100, Math.round((downloaded / contentLength) * 100));
+              progressBar.style.width = `${pct}%`;
+              progressText.textContent = `${t('updateDownloading')} ${pct}%`;
+            }
+          } else if (event.event === 'Finished') {
+            progressBar.style.width = '100%';
+          }
+        });
+        const { relaunch } = await import('@tauri-apps/plugin-process');
+        await relaunch();
+      } catch (err) {
+        btnInstall.disabled = false;
+        btnDismiss.disabled = false;
+        progressWrap.classList.add('hidden');
+        showToast(err?.message || 'Update download failed', 3500);
+      }
+    };
+  } catch {
+    // Silent no-op when offline or updater key/manifest is unavailable
+  }
+}
+
+setTimeout(() => {
+  initAutoUpdater();
+}, 1500);

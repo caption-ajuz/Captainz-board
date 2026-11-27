@@ -60,6 +60,11 @@ export const TRANSLATIONS = {
     toastShapeSnapped: 'Shape snapped',
     toastRestored: 'Previous session restored',
     toastPptFallback: 'Opened PPTX via built-in slide renderer',
+    updateTitle: 'Update Available',
+    updateReadyBody: 'A new version of Captnz Board is ready to install.',
+    updateLater: 'Later',
+    updateInstall: 'Download & Restart',
+    updateDownloading: 'Downloading update...',
   },
   ml: {
     dir: 'ltr',
@@ -122,6 +127,11 @@ export const TRANSLATIONS = {
     toastShapeSnapped: 'രൂപം ക്രമീകരിച്ചു',
     toastRestored: 'മുൻ സെഷൻ വീണ്ടെടുത്തു',
     toastPptFallback: 'PPTX സ്ലൈഡുകൾ തുറന്നു',
+    updateTitle: 'അപ്‌ഡേറ്റ് ലഭ്യമാണ്',
+    updateReadyBody: 'Captnz Board-ന്റെ പുതിയ പതിപ്പ് ഇൻസ്റ്റാൾ ചെയ്യാൻ തയ്യാറാണ്.',
+    updateLater: 'പിന്നീട്',
+    updateInstall: 'ഡൗൺലോഡ് & റീസ്റ്റാർട്ട്',
+    updateDownloading: 'അപ്‌ഡേറ്റ് ഡൗൺലോഡ് ചെയ്യുന്നു...',
   },
   ar: {
     dir: 'rtl',
@@ -184,6 +194,11 @@ export const TRANSLATIONS = {
     toastShapeSnapped: 'تم ضبط الشكل تلقائياً',
     toastRestored: 'تمت استعادة الجلسة السابقة',
     toastPptFallback: 'تم فتح العرض التقديمي بالعارض المدمج',
+    updateTitle: 'يتوفر تحديث جديد',
+    updateReadyBody: 'يتوفر إصدار جديد من Captnz Board جاهز للتثبيت.',
+    updateLater: 'لاحقاً',
+    updateInstall: 'تنزيل وإعادة التشغيل',
+    updateDownloading: 'جارٍ تنزيل التحديث...',
   },
 };
 

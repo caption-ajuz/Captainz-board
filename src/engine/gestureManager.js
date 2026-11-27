@@ -19,6 +19,7 @@ export class GestureManager {
     onDrawEnd,
     onDrawCancel,
     onTransformChange,
+    onZoomEnd,
     onTwoFingerTap,
     onThreeFingerTap,
   }) {
@@ -29,6 +30,7 @@ export class GestureManager {
     this.onDrawEnd = onDrawEnd;
     this.onDrawCancel = onDrawCancel;
     this.onTransformChange = onTransformChange;
+    this.onZoomEnd = onZoomEnd;
     this.onTwoFingerTap = onTwoFingerTap;
     this.onThreeFingerTap = onThreeFingerTap;
 
@@ -46,6 +48,7 @@ export class GestureManager {
     this.pinchStart = null;
     this._tapCandidate = null;
     this._animTimer = null;
+    this._zoomEndTimer = null;
 
     this._bindEvents();
   }
@@ -77,6 +80,14 @@ export class GestureManager {
     this.ty = ty;
     this._clampPan();
     this._applyTransform();
+    this._scheduleZoomEnd(animate ? 250 : 40);
+  }
+
+  _scheduleZoomEnd(delay = 160) {
+    clearTimeout(this._zoomEndTimer);
+    this._zoomEndTimer = setTimeout(() => {
+      this.onZoomEnd?.({ scale: this.scale, tx: this.tx, ty: this.ty });
+    }, delay);
   }
 
   resetZoom(animate = true) {
@@ -249,6 +260,7 @@ export class GestureManager {
       if (this.isPinching && this.activePointers.size < 2) {
         this.isPinching = false;
         this.pinchStart = null;
+        this._scheduleZoomEnd(120);
       }
 
       if (e.pointerId === this.drawingPointerId) {
@@ -311,6 +323,7 @@ export class GestureManager {
         this.scale = nextScale;
         this._clampPan();
         this._applyTransform();
+        this._scheduleZoomEnd(180);
       },
       { passive: false }
     );

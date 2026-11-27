@@ -18,6 +18,7 @@ export class SlideDrawer {
     onClearPage,
     onNewBoard,
     onBeforeOpen,
+    onRequestThumbnail,
   }) {
     this.drawer = document.getElementById('slide-drawer');
     this.backdrop = document.getElementById('drawer-backdrop');
@@ -30,6 +31,11 @@ export class SlideDrawer {
     this.onSelectPage = onSelectPage;
     this.onDeletePage = onDeletePage;
     this.onBeforeOpen = onBeforeOpen;
+    this.onRequestThumbnail = onRequestThumbnail;
+    this._thumbObserver = null;
+    this._renderVersion = 0;
+    this._thumbQueue = [];
+    this._thumbWorkerRunning = false;
     this.isOpen = false;
     this.drawer.inert = true;
 
@@ -131,21 +137,38 @@ export class SlideDrawer {
   }
 
   renderThumbnails(pages, currentIndex) {
+    this._renderVersion += 1;
+    const version = this._renderVersion;
+    this._thumbObserver?.disconnect();
+    this._thumbQueue = [];
     this.thumbList.innerHTML = '';
+
+    const fragment = document.createDocumentFragment();
+    let activeCardEl = null;
+
+    const pendingCards = [];
     pages.forEach((page, idx) => {
       const card = document.createElement('div');
-      card.className = `thumb-card${idx === currentIndex ? ' active' : ''}`;
+      card.className = `thumb-card thumbnail-card${idx === currentIndex ? ' active' : ''}`;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
       card.setAttribute('aria-label', `Page ${idx + 1}`);
+      card.dataset.pageIdx = String(idx);
+
+      if (idx === currentIndex) activeCardEl = card;
 
       if (page.thumbnail) {
         const img = document.createElement('img');
         img.src = page.thumbnail;
         img.alt = `Page ${idx + 1}`;
+        img.loading = 'lazy';
+        img.decoding = 'async';
         card.appendChild(img);
       } else {
         card.style.background = page.background === 'blackboard' ? '#14362b' : '#ffffff';
+        if (this.onRequestThumbnail) {
+          pendingCards.push({ card, page, idx });
+        }
       }
 
       const badge = document.createElement('span');
@@ -165,7 +188,7 @@ export class SlideDrawer {
         del.setAttribute('aria-label', 'Delete Page');
         del.title = 'Delete Page';
         del.innerHTML =
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+          '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
         del.addEventListener('click', (e) => {
           e.stopPropagation();
           this.onDeletePage?.(idx);
@@ -185,7 +208,68 @@ export class SlideDrawer {
         }
       });
 
-      this.thumbList.appendChild(card);
+      fragment.appendChild(card);
     });
+
+    this.thumbList.appendChild(fragment);
+
+    if (activeCardEl) {
+      activeCardEl.scrollIntoView({ block: 'nearest' });
+    }
+
+    if (pendingCards.length > 0 && typeof IntersectionObserver !== 'undefined') {
+      const cardMap = new Map(pendingCards.map((item) => [item.card, item]));
+      this._thumbObserver = new IntersectionObserver(
+        (entries) => {
+          if (version !== this._renderVersion) return;
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            const item = cardMap.get(entry.target);
+            if (!item) continue;
+            this._thumbObserver.unobserve(entry.target);
+            cardMap.delete(entry.target);
+            this._enqueueThumbnail(item, version);
+          }
+        },
+        { root: this.thumbList, rootMargin: '240px 0px', threshold: 0.01 }
+      );
+      for (const { card } of pendingCards) {
+        this._thumbObserver.observe(card);
+      }
+    }
+  }
+
+  _enqueueThumbnail(item, version) {
+    this._thumbQueue.push({ ...item, version });
+    if (!this._thumbWorkerRunning) {
+      this._drainThumbnailQueue();
+    }
+  }
+
+  async _drainThumbnailQueue() {
+    this._thumbWorkerRunning = true;
+    try {
+      while (this._thumbQueue.length > 0) {
+        const job = this._thumbQueue.shift();
+        if (job.version !== this._renderVersion || !this.isOpen) continue;
+        if (job.page.thumbnail) continue;
+        try {
+          const dataUrl = await this.onRequestThumbnail?.(job.page);
+          if (job.version !== this._renderVersion || !dataUrl) continue;
+          if (!job.card.querySelector('img')) {
+            const img = document.createElement('img');
+            img.src = dataUrl;
+            img.alt = `Page ${job.idx + 1}`;
+            img.decoding = 'async';
+            job.card.prepend(img);
+          }
+        } catch {
+          // Ignore cancelled/failed lazy thumbnail renders
+        }
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    } finally {
+      this._thumbWorkerRunning = false;
+    }
   }
 }

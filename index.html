@@ -358,10 +358,31 @@
   </div>
 
   <!-- Recovery Banner -->
-  <div id="recovery-banner" class="glass-pill recovery-banner hidden">
+  <div id="recovery-banner" class="glass-pill floating-pill recovery-banner hidden">
     <span data-i18n="recoveryPrompt">Unsaved session found. Restore it?</span>
     <button id="btn-recovery-restore" class="pill-btn accent" data-i18n="restore">Restore</button>
     <button id="btn-recovery-dismiss" class="pill-btn" data-i18n="dismiss">Dismiss</button>
+  </div>
+
+  <!-- In-App Auto-Update Modal (Tauri Desktop) -->
+  <div id="update-modal-backdrop" class="update-modal-backdrop hidden" aria-hidden="true" inert>
+    <div id="update-modal" class="update-modal" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+      <div class="update-modal-header">
+        <h2 id="update-modal-title" class="update-modal-title" data-i18n="updateTitle">Update Available</h2>
+        <span id="update-version-badge" class="update-version-badge">v1.0.0</span>
+      </div>
+      <p id="update-modal-notes" class="update-modal-notes" data-i18n="updateReadyBody">A new version of Captnz Board is ready to install.</p>
+      <div id="update-progress-wrap" class="update-progress-wrap hidden">
+        <div class="update-progress-track">
+          <div id="update-progress-bar" class="update-progress-bar"></div>
+        </div>
+        <span id="update-progress-text" class="update-progress-text" data-i18n="updateDownloading">Downloading update...</span>
+      </div>
+      <div class="update-modal-actions">
+        <button id="btn-update-dismiss" class="pill-btn" data-i18n="updateLater">Later</button>
+        <button id="btn-update-install" class="pill-btn accent" data-i18n="updateInstall">Download &amp; Restart</button>
+      </div>
+    </div>
   </div>
 
   <!-- Toast -->

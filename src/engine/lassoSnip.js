@@ -70,12 +70,14 @@ export class LassoSnipTool {
     }
 
     // Composite bgCanvas + inkCanvas inside the clipped lasso polygon
-    const dpr = Number(this.bgCanvas.dataset?.dpr) || this.bgCanvas.width / this.bgCanvas.clientWidth || 1;
+    const bgDpr = Number(this.bgCanvas.dataset?.dpr) || this.bgCanvas.width / this.bgCanvas.clientWidth || 1;
+    const inkDpr = Number(this.inkCanvas.dataset?.dpr) || this.inkCanvas.width / this.inkCanvas.clientWidth || 1;
+    const cropDpr = Math.max(bgDpr, inkDpr);
     const cropCanvas = document.createElement('canvas');
-    cropCanvas.width = Math.round(w * dpr);
-    cropCanvas.height = Math.round(h * dpr);
+    cropCanvas.width = Math.round(w * cropDpr);
+    cropCanvas.height = Math.round(h * cropDpr);
     const ctx = cropCanvas.getContext('2d');
-    ctx.scale(dpr, dpr);
+    ctx.scale(cropDpr, cropDpr);
 
     ctx.save();
     ctx.beginPath();
@@ -88,12 +90,12 @@ export class LassoSnipTool {
 
     ctx.drawImage(
       this.bgCanvas,
-      minX * dpr, minY * dpr, w * dpr, h * dpr,
+      minX * bgDpr, minY * bgDpr, w * bgDpr, h * bgDpr,
       0, 0, w, h
     );
     ctx.drawImage(
       this.inkCanvas,
-      minX * dpr, minY * dpr, w * dpr, h * dpr,
+      minX * inkDpr, minY * inkDpr, w * inkDpr, h * inkDpr,
       0, 0, w, h
     );
     ctx.restore();

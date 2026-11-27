@@ -313,12 +313,38 @@ export class PageManager {
   }
 
   /**
+   * Computes a high-DPI render scale for crisp PDF text while staying within a safe 4K memory budget.
+   */
+  getPdfRenderScale(cssW, cssH, zoomScale = 1) {
+    const baseDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const renderScale = Math.max(baseDpr, 2.5) * Math.max(1, zoomScale);
+    const maxBudgetDpr = Math.sqrt((3840 * 2160 * 1.5) / Math.max(1, cssW * cssH));
+    return Math.max(1, Math.min(renderScale, maxBudgetDpr, 4));
+  }
+
+  /**
    * Renders the active page's sheet + PDF/Image/PPT slide onto a target 2D canvas
    * and returns the sheet layout metadata for orientation-aware viewport fitting.
    */
-  async renderPageBackground(page, targetCanvas = this.bgCanvas, dpr = null) {
-    const effectiveDpr = dpr || Number(targetCanvas.dataset?.dpr) || getOptimalDpr();
+  async renderPageBackground(page, targetCanvas = this.bgCanvas, dpr = null, zoomScale = 1) {
     const isLiveCanvas = targetCanvas === this.bgCanvas;
+    let effectiveDpr = dpr;
+    if (isLiveCanvas && !effectiveDpr) {
+      const baseCssW = parseFloat(targetCanvas.style.width) || window.innerWidth || 1920;
+      const baseCssH = parseFloat(targetCanvas.style.height) || window.innerHeight || 1080;
+      effectiveDpr =
+        page.type === 'pdf'
+          ? this.getPdfRenderScale(baseCssW, baseCssH, zoomScale)
+          : getOptimalDpr(baseCssW, baseCssH);
+      const targetW = Math.round(baseCssW * effectiveDpr);
+      const targetH = Math.round(baseCssH * effectiveDpr);
+      if (targetCanvas.width !== targetW || targetCanvas.height !== targetH) {
+        targetCanvas.width = targetW;
+        targetCanvas.height = targetH;
+      }
+      targetCanvas.dataset.dpr = String(effectiveDpr);
+    }
+    effectiveDpr = effectiveDpr || Number(targetCanvas.dataset?.dpr) || getOptimalDpr();
     const seq = isLiveCanvas ? ++this._renderSeq : 0;
 
     const ctx = targetCanvas.getContext('2d', { alpha: true });
@@ -597,7 +623,7 @@ export class PageManager {
   }
 
   /**
-   * Generates a lightweight JPEG thumbnail for the current page from the live canvases,
+   * Generates a lightweight 4:3 JPEG thumbnail for the current page from the live canvases,
    * reusing a single small offscreen canvas to avoid per-page buffer churn.
    */
   captureCurrentThumbnail(inkCanvas) {
@@ -605,8 +631,8 @@ export class PageManager {
     if (!page) return;
     if (!this._thumbCanvas) {
       this._thumbCanvas = document.createElement('canvas');
-      this._thumbCanvas.width = 256;
-      this._thumbCanvas.height = 144;
+      this._thumbCanvas.width = 240;
+      this._thumbCanvas.height = 180;
     }
     const thumb = this._thumbCanvas;
     const ctx = thumb.getContext('2d');
@@ -617,5 +643,65 @@ export class PageManager {
       ctx.drawImage(inkCanvas, 0, 0, thumb.width, thumb.height);
     }
     page.thumbnail = thumb.toDataURL('image/jpeg', 0.72);
+  }
+
+  /**
+   * Lazily renders a 4:3 thumbnail for any unvisited page (used by the windowed drawer list).
+   */
+  async renderThumbnailForPage(page) {
+    if (!page) return null;
+    if (page.thumbnail) return page.thumbnail;
+
+    if (!this._lazyThumbCanvas) {
+      this._lazyThumbCanvas = document.createElement('canvas');
+      this._lazyThumbCanvas.width = 240;
+      this._lazyThumbCanvas.height = 180;
+    }
+    const thumb = this._lazyThumbCanvas;
+    const ctx = thumb.getContext('2d');
+    const w = thumb.width;
+    const h = thumb.height;
+
+    ctx.fillStyle = document.documentElement.dataset.theme === 'light' ? '#eef1f5' : '#0b0f17';
+    ctx.fillRect(0, 0, w, h);
+
+    if (page.type === 'pdf') {
+      const entry = this.pdfDocs.get(page.pdfDocId);
+      if (!entry?.pdfDoc) return null;
+      const pdfPage = await entry.pdfDoc.getPage(page.pdfPageNum);
+      try {
+        const unscaled = pdfPage.getViewport({ scale: 1 });
+        const scale = Math.min((w * 0.9) / unscaled.width, (h * 0.9) / unscaled.height);
+        const viewport = pdfPage.getViewport({ scale });
+        const ox = (w - viewport.width) / 2;
+        const oy = (h - viewport.height) / 2;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(ox, oy, viewport.width, viewport.height);
+        ctx.save();
+        ctx.translate(ox, oy);
+        await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+        ctx.restore();
+      } finally {
+        pdfPage.cleanup?.();
+      }
+    } else if (page.type === 'image' && page.imageDataUrl) {
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const s = Math.min((w * 0.9) / img.width, (h * 0.9) / img.height);
+          const iw = img.width * s;
+          const ih = img.height * s;
+          ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
+          resolve();
+        };
+        img.onerror = resolve;
+        img.src = page.imageDataUrl;
+      });
+    } else {
+      this._drawBoardBackground(ctx, w, h, page.background || 'white');
+    }
+
+    page.thumbnail = thumb.toDataURL('image/jpeg', 0.72);
+    return page.thumbnail;
   }
 }
