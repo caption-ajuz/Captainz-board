@@ -27,6 +27,7 @@ export class FloatingOrb {
     this.panel = document.getElementById('orb-panel');
     this.ring = document.getElementById('orb-color-ring');
     this.activeIcon = document.getElementById('orb-active-icon');
+    this.sizeBadge = document.getElementById('orb-size-badge');
     this.lockBadge = document.getElementById('orb-lock-badge');
     this.btnTouchLock = document.getElementById('btn-touch-lock');
     this.slider = document.getElementById('stroke-size-slider');
@@ -147,6 +148,7 @@ export class FloatingOrb {
   setSize(size) {
     this.slider.value = String(size);
     this.sizeVal.textContent = String(size);
+    if (this.sizeBadge) this.sizeBadge.textContent = String(size);
     const dotPx = Math.max(4, Math.min(24, size));
     this.sizeDot.style.width = `${dotPx}px`;
     this.sizeDot.style.height = `${dotPx}px`;
@@ -154,6 +156,7 @@ export class FloatingOrb {
 
   setTouchLocked(locked) {
     this.touchLocked = Boolean(locked);
+    this.btnToggle?.classList.toggle('touch-locked', this.touchLocked);
     if (this.btnTouchLock) {
       this.btnTouchLock.classList.toggle('active', this.touchLocked);
       this.btnTouchLock.setAttribute('aria-pressed', String(this.touchLocked));
