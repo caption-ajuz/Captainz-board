@@ -5,7 +5,7 @@
  * and persists user positions in localStorage.
  */
 
-const DRAG_THRESHOLD = 8;
+const DRAG_THRESHOLD = 6;
 const SNAP_TRANSITION = 'left 260ms cubic-bezier(0.22, 1, 0.36, 1), top 260ms cubic-bezier(0.22, 1, 0.36, 1)';
 
 export function makeDraggable(
@@ -13,6 +13,7 @@ export function makeDraggable(
   { storageKey, handleSelector = null, snapToEdge = true, edgeMargin = 16, onDragEnd = null } = {}
 ) {
   let isDragging = false;
+  let activePointerId = null;
   let moved = false;
   let startClientX = 0;
   let startClientY = 0;
@@ -51,45 +52,58 @@ export function makeDraggable(
   target.addEventListener('pointerdown', (e) => {
     if (e.button === 2) return;
     // Do not start dragging from sliders, inputs, or the expanded orb panel
-    if (e.target.closest('.orb-panel') || e.target.tagName === 'INPUT') return;
-
-    clearTimeout(snapTimer);
-    el.style.transition = 'none';
+    if (
+      e.target.closest('.orb-panel') ||
+      e.target.tagName === 'INPUT' ||
+      e.target.tagName === 'SELECT' ||
+      e.target.tagName === 'TEXTAREA'
+    ) {
+      return;
+    }
 
     const rect = el.getBoundingClientRect();
     startClientX = e.clientX;
     startClientY = e.clientY;
     startLeft = rect.left;
     startTop = rect.top;
+    activePointerId = e.pointerId;
     isDragging = true;
     moved = false;
-
-    target.setPointerCapture(e.pointerId);
   });
 
-  target.addEventListener('pointermove', (e) => {
-    if (!isDragging) return;
+  window.addEventListener('pointermove', (e) => {
+    if (!isDragging || e.pointerId !== activePointerId) return;
     const dx = e.clientX - startClientX;
     const dy = e.clientY - startClientY;
 
-    if (!moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-    moved = true;
+    if (!moved) {
+      if (Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
+      moved = true;
+      clearTimeout(snapTimer);
+      el.style.transition = 'none';
+      try {
+        target.setPointerCapture?.(e.pointerId);
+      } catch {
+        // Ignore if pointer capture is unavailable
+      }
+    }
 
     applyClampedPosition(el, startLeft + dx, startTop + dy, edgeMargin);
   });
 
   const endDrag = (e) => {
-    if (!isDragging) return;
+    if (!isDragging || e.pointerId !== activePointerId) return;
     isDragging = false;
+    activePointerId = null;
 
     if (moved) {
-      // Suppress the synthetic click event immediately after a drag
+      // Suppress the synthetic click event immediately after a drag (> DRAG_THRESHOLD)
       const suppressClick = (clickEv) => {
         clickEv.stopImmediatePropagation();
         clickEv.preventDefault();
       };
       el.addEventListener('click', suppressClick, { capture: true, once: true });
-      setTimeout(() => el.removeEventListener('click', suppressClick, { capture: true }), 80);
+      setTimeout(() => el.removeEventListener('click', suppressClick, { capture: true }), 120);
 
       const rect = el.getBoundingClientRect();
       let finalLeft = rect.left;
@@ -135,8 +149,8 @@ export function makeDraggable(
     }
   };
 
-  target.addEventListener('pointerup', endDrag);
-  target.addEventListener('pointercancel', endDrag);
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
 
   window.addEventListener('resize', () => {
     if (el.style.left && el.style.top) {

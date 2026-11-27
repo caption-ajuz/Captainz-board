@@ -21,6 +21,7 @@ export class SlideDrawer {
   }) {
     this.drawer = document.getElementById('slide-drawer');
     this.backdrop = document.getElementById('drawer-backdrop');
+    this.btnHamburger = document.getElementById('btn-hamburger');
     this.thumbList = document.getElementById('thumbnail-list');
     this.btnTheme = document.getElementById('btn-toggle-theme');
     this.btnPalm = document.getElementById('btn-toggle-palm');
@@ -30,8 +31,9 @@ export class SlideDrawer {
     this.onDeletePage = onDeletePage;
     this.onBeforeOpen = onBeforeOpen;
     this.isOpen = false;
+    this.drawer.inert = true;
 
-    document.getElementById('btn-hamburger').addEventListener('click', () => this.toggle());
+    this.btnHamburger.addEventListener('click', () => this.toggle());
     document.getElementById('btn-close-drawer').addEventListener('click', () => this.close());
     this.backdrop.addEventListener('click', () => this.close());
 
@@ -112,6 +114,7 @@ export class SlideDrawer {
   open() {
     this.onBeforeOpen?.();
     this.isOpen = true;
+    this.drawer.inert = false;
     this.drawer.classList.add('open');
     this.drawer.setAttribute('aria-hidden', 'false');
     this.backdrop.classList.remove('hidden');
@@ -119,7 +122,12 @@ export class SlideDrawer {
 
   close() {
     this.isOpen = false;
+    if (this.drawer.contains(document.activeElement)) {
+      document.activeElement?.blur?.();
+      this.btnHamburger?.focus?.({ preventScroll: true });
+    }
     this.drawer.classList.remove('open');
+    this.drawer.inert = true;
     this.drawer.setAttribute('aria-hidden', 'true');
     this.backdrop.classList.add('hidden');
   }

@@ -163,6 +163,7 @@ html, body {
   top: 16px;
   left: 16px;
   z-index: 40;
+  pointer-events: auto;
   width: 50px;
   height: 50px;
   border-radius: 15px;
@@ -174,6 +175,11 @@ html, body {
   place-items: center;
   cursor: pointer;
   transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.hamburger-btn svg,
+.glass-nav-btn svg {
+  pointer-events: none;
 }
 
 [dir="rtl"] .hamburger-btn {
@@ -209,6 +215,7 @@ html, body {
   padding: 18px 16px;
   gap: 16px;
   transform: translateX(-105%);
+  pointer-events: none;
   transition: transform var(--transition-smooth);
 }
 
@@ -222,6 +229,7 @@ html, body {
 
 .slide-drawer.open {
   transform: translateX(0);
+  pointer-events: auto;
 }
 
 .drawer-header {
@@ -410,6 +418,7 @@ html, body {
   overflow-y: auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-content: start;
   gap: 10px;
   padding-right: 4px;
   touch-action: pan-y;
@@ -417,12 +426,14 @@ html, body {
 
 .thumb-card {
   position: relative;
+  width: 100%;
   border-radius: 12px;
   border: 2px solid var(--glass-border);
   overflow: hidden;
   cursor: pointer;
   background: #fff;
   aspect-ratio: 16 / 9;
+  max-height: 110px;
   transition: border-color var(--transition-fast), transform var(--transition-fast);
 }
 
@@ -473,6 +484,7 @@ html, body {
   position: fixed;
   z-index: 35;
   touch-action: none;
+  pointer-events: auto;
 }
 
 .nav-prev-dock {
@@ -494,6 +506,7 @@ html, body {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
+  pointer-events: auto;
 }
 
 .glass-nav-btn {
@@ -507,6 +520,7 @@ html, body {
   display: grid;
   place-items: center;
   cursor: pointer;
+  pointer-events: auto;
   transition: transform var(--transition-fast), background var(--transition-fast);
 }
 
@@ -554,6 +568,7 @@ html, body {
   display: grid;
   place-items: center;
   cursor: grab;
+  pointer-events: auto;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
